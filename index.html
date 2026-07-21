@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memoiren - Gedankennetz</title>
+    
+    <!-- خط أنيق ونظيف مريح للعين -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- مكتبة Vis.js لعرض الخريطة -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- الشريط العلوي -->
+    <header class="top-bar">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+            <span>Memoiren</span>
+        </div>
+        <div class="controls">
+            <label class="switch-container">
+                <span>Verbindungsmodus</span>
+                <input type="checkbox" id="connectSwitch">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </header>
+
+    <!-- مساحة الخريطة الذهنية -->
+    <main id="mindmap"></main>
+
+    <!-- سلة إنشاء الجزيئات/الفقاعات -->
+    <div class="bubble-basket" id="bubbleBasket" draggable="true">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+        <span>Neuer Gedanke</span>
+    </div>
+
+    <!-- نافذة المحتوى -->
+    <div class="modal-overlay" id="contentModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <input type="text" id="bubbleTitleInput" class="editable-title" placeholder="Titel eingeben...">
+                <button class="close-btn" id="closeContentModal">&times;</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="quickNotesTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Notizen
+                </button>
+                <button class="tab-btn" data-tab="notebooksTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+                    Notizbuch
+                </button>
+                <button class="tab-btn" data-tab="audiosTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                    Audio
+                </button>
+                <button class="tab-btn" data-tab="photosTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Bilder
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- الملاحظات السريعة -->
+                <div class="tab-content active" id="quickNotesTab">
+                    <button class="add-item-btn" id="addQuickNoteBtn">+ Neue Notiz hinzufügen</button>
+                    <div class="items-list" id="quickNotesList"></div>
+                </div>
+
+                <!-- الدفتر -->
+                <div class="tab-content" id="notebooksTab">
+                    <button class="add-item-btn" id="addNotebookBtn">+ Neues Notizbuch erstellen</button>
+                    <div class="items-list" id="notebooksList"></div>
+                </div>
+
+                <!-- الصوتيات -->
+                <div class="tab-content" id="audiosTab">
+                    <div class="audio-recorder-box">
+                        <button id="recordAudioBtn" class="record-btn">Aufnahme starten</button>
+                        <span id="recordingTimer" style="display:none;">Aufnahme läuft...</span>
+                    </div>
+                    <div class="items-list" id="audiosList"></div>
+                </div>
+
+                <!-- الصور -->
+                <div class="tab-content" id="photosTab">
+                    <label class="upload-btn">
+                        <span>Bild hinzufügen</span>
+                        <input type="file" id="imageInput" accept="image/*" capture="environment" hidden>
+                    </label>
+                    <div class="photos-grid" id="photosList"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="delete-btn" id="deleteBubbleBtn">Element löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تأكيد الحذف -->
+    <div class="modal-overlay danger-zone" id="confirmModal">
+        <div class="modal-card small-card">
+            <h3>Sind Sie sicher?</h3>
+            <p>Diese Aktion kann nicht rückgängig gemacht werden.</p>
+            <div class="confirm-actions">
+                <button class="btn-cancel" id="cancelConfirmBtn">Abbrechen</button>
+                <button class="btn-danger" id="actionConfirmBtn">Löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة نقل العناصر -->
+    <div class="modal-overlay" id="moveModal">
+        <div class="modal-card small-card">
+            <h3>Verschieben nach</h3>
+            <select id="targetBubbleSelect" class="styled-select"></select>
+            <div class="confirm-actions">
+                <button class="btn-cancel" id="cancelMoveBtn">Abbrechen</button>
+                <button class="btn-primary" id="actionMoveBtn">Verschieben</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
