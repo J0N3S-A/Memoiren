@@ -13,9 +13,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 2. إعدادات Supabase (المفتاح الكامل)
+// 2. إعدادات Supabase (تم وضع مفتاحك الصحيح هنا)
 const SUPABASE_URL = "https://slcjqnexveclbtvjxeuc.supabase.co";
-const SUPABASE_KEY = "sb_publishable_RaoTVkCg8uqZPrQM2kxPPQ_toTZh"; 
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsY2pxbmV4dmVjbGJ0dmp4ZXVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTcwNTksImV4cCI6MjEwMDE5MzA1OX0.tZM3I7Kx8_ACL4_HzZRvqSr31OmfuueJs9_Ml7ldgHA"; 
 const BUCKET_NAME = "memoiren-files";
 
 // 3. المتغيرات العامة
@@ -146,22 +146,28 @@ document.getElementById("recordAudioBtn").addEventListener("click", async () => 
         mediaRecorder.stop();
         btn.innerText = "Aufnahme starten"; timer.style.display = "none";
     } else {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.start();
-        btn.innerText = "Stoppen & Speichern"; timer.style.display = "inline";
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = async () => {
-            const file = new File([new Blob(audioChunks, { type: "audio/webm" })], "record.webm", {type: "audio/webm"});
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
-            const url = await uploadToSupabase(file);
-            if(url){
-                const b = nodesData.get(activeBubbleId);
-                if (!b.content.audios) b.content.audios = [];
-                b.content.audios.push({ id: Date.now(), title: "Audioaufnahme", url });
-                await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
-            }
-        };
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.start();
+            btn.innerText = "Stoppen & Speichern"; timer.style.display = "inline";
+            mediaRecorder.onstop = async () => {
+                const file = new File([new Blob(audioChunks, { type: "audio/webm" })], "record.webm", {type: "audio/webm"});
+                audioChunks = [];
+                const url = await uploadToSupabase(file);
+                if(url){
+                    const b = nodesData.get(activeBubbleId);
+                    if (!b.content.audios) b.content.audios = [];
+                    b.content.audios.push({ id: Date.now(), title: "Audioaufnahme", url });
+                    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+                }
+            };
+        } catch (err) {
+            console.error("Microphone access error:", err);
+            alert("يرجى التأكد من السماح للمتصفح بالوصول إلى الميكروفون.");
+        }
     }
 });
 
@@ -245,7 +251,7 @@ window.openNotebook = (index) => {
     currentNotebookIndex = index; currentPageIndex = 0;
     const b = nodesData.get(activeBubbleId);
     const nb = b.content.notebooks[index];
-    if (!nb.pages) { nb.pages = [nb.text || ""]; delete nb.text; } // Backward compatibility
+    if (!nb.pages) { nb.pages = [nb.text || ""]; delete nb.text; }
     document.getElementById("activeNotebookTitle").innerText = nb.title;
     document.getElementById("notebookModal").classList.add("active");
     renderNotebookPage();
