@@ -5,14 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Memoiren - Gedankennetz</title>
     
-    <!-- خط أنيق ونظيف مريح للعين -->
+    <!-- خط Plus Jakarta Sans لستايل نظيف وحديث -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- مكتبة Vis.js لعرض الخريطة -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -35,13 +33,13 @@
     <!-- مساحة الخريطة الذهنية -->
     <main id="mindmap"></main>
 
-    <!-- سلة إنشاء الجزيئات/الفقاعات -->
+    <!-- سلة إنشاء الجزيئات -->
     <div class="bubble-basket" id="bubbleBasket" draggable="true">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
         <span>Neuer Gedanke</span>
     </div>
 
-    <!-- نافذة المحتوى -->
+    <!-- نافذة المحتويات الرئيسية -->
     <div class="modal-overlay" id="contentModal">
         <div class="modal-card">
             <div class="modal-header">
@@ -56,7 +54,7 @@
                 </button>
                 <button class="tab-btn" data-tab="notebooksTab">
                     <svg class="tab-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
-                    Notizbuch
+                    Notizbücher
                 </button>
                 <button class="tab-btn" data-tab="audiosTab">
                     <svg class="tab-icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
@@ -69,19 +67,16 @@
             </div>
 
             <div class="modal-body">
-                <!-- الملاحظات السريعة -->
                 <div class="tab-content active" id="quickNotesTab">
-                    <button class="add-item-btn" id="addQuickNoteBtn">+ Neue Notiz hinzufügen</button>
+                    <button class="add-item-btn" id="addQuickNoteBtn">+ Neue Notiz</button>
                     <div class="items-list" id="quickNotesList"></div>
                 </div>
 
-                <!-- الدفتر -->
                 <div class="tab-content" id="notebooksTab">
-                    <button class="add-item-btn" id="addNotebookBtn">+ Neues Notizbuch erstellen</button>
+                    <button class="add-item-btn" id="addNotebookBtn">+ Neues Notizbuch</button>
                     <div class="items-list" id="notebooksList"></div>
                 </div>
 
-                <!-- الصوتيات -->
                 <div class="tab-content" id="audiosTab">
                     <div class="audio-recorder-box">
                         <button id="recordAudioBtn" class="record-btn">Aufnahme starten</button>
@@ -90,7 +85,6 @@
                     <div class="items-list" id="audiosList"></div>
                 </div>
 
-                <!-- الصور -->
                 <div class="tab-content" id="photosTab">
                     <label class="upload-btn">
                         <span>Bild hinzufügen</span>
@@ -106,8 +100,26 @@
         </div>
     </div>
 
-    <!-- نافذة تأكيد الحذف -->
-    <div class="modal-overlay danger-zone" id="confirmModal">
+    <!-- نافذة الدفتر المفتوح -->
+    <div class="modal-overlay" id="notebookModal" style="z-index: 110;">
+        <div class="modal-card notebook-card">
+            <div class="modal-header">
+                <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
+                <button class="close-btn" id="closeNotebookModal">&times;</button>
+            </div>
+            <div class="notebook-page-container">
+                <textarea id="notebookPageInput" class="notebook-textarea" placeholder="Schreibe deine Gedanken hier..."></textarea>
+                <div class="page-footer">
+                    <button id="prevPageBtn" class="page-btn">&larr; Zurück</button>
+                    <span id="pageIndicator" class="page-number">Seite 1</span>
+                    <button id="nextPageBtn" class="page-btn">Weiter &rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نوافذ التأكيد والنقل -->
+    <div class="modal-overlay danger-zone" id="confirmModal" style="z-index: 120;">
         <div class="modal-card small-card">
             <h3>Sind Sie sicher?</h3>
             <p>Diese Aktion kann nicht rückgängig gemacht werden.</p>
@@ -118,8 +130,7 @@
         </div>
     </div>
 
-    <!-- نافذة نقل العناصر -->
-    <div class="modal-overlay" id="moveModal">
+    <div class="modal-overlay" id="moveModal" style="z-index: 120;">
         <div class="modal-card small-card">
             <h3>Verschieben nach</h3>
             <select id="targetBubbleSelect" class="styled-select"></select>
