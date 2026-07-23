@@ -27,7 +27,7 @@ let currentNotebookIndex = null;
 let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
 
-// 4. إعداد الخريطة الذهنية (مع إيقاف الفيزياء تماماً لمنع الحركة والقفز)
+// 4. إعداد الخريطة الذهنية (مع تمويه الفيزياء في أول ثانيتين فقط)
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
@@ -41,7 +41,19 @@ const options = {
         borderWidth: 2, shadow: { enabled: true, color: "rgba(74, 93, 84, 0.04)", size: 12 }
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 2 },
-    physics: false, // تعطيل الفيزياء يمنع القفز والحركة العشوائية نهائياً
+    
+    // إعدادات الفيزياء المتطورة
+    physics: {
+        enabled: false, // إيقافها أولاً لمنع القفز المزعج عند الدخول
+        solver: "barnesHut",
+        barnesHut: {
+            gravitationalConstant: -3000,
+            centralGravity: 0.3,
+            springLength: 95,
+            springConstant: 0.04,
+            damping: 0.09
+        }
+    },
     interaction: { hover: true, dragNodes: true },
     manipulation: { enabled: false, addEdge: async function(edgeData, callback) {
         if(edgeData.from !== edgeData.to) {
@@ -51,6 +63,11 @@ const options = {
     }}
 };
 const network = new vis.Network(container, data, options);
+
+// تفعيل الفيزياء السلسة والممتعة تلقائياً بعد ثانيتين من الفتح
+setTimeout(() => {
+    network.setOptions({ physics: { enabled: true } });
+}, 2000);
 
 // حفظ موقع الكرة الجديد فور سحبها يدوياً
 network.on("dragEnd", async function (params) {
@@ -268,7 +285,7 @@ function renderContent(id) {
             </div>
         </div>`).join("");
         
-    // مجموعات التسجيلات الصوتية (تصميم واضح ومباشر)
+    // مجموعات التسجيلات الصوتية
     document.getElementById("audiosList").innerHTML = `
         <div style="margin-bottom: 15px;">
             <button class="btn-primary" onclick="addAudioGroup()" style="width: 100%; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer;">
