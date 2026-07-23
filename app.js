@@ -13,7 +13,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 2. إعدادات Supabase (تم وضع مفتاحك الصحيح هنا)
+// 2. إعدادات Supabase
 const SUPABASE_URL = "https://slcjqnexveclbtvjxeuc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsY2pxbmV4dmVjbGJ0dmp4ZXVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTcwNTksImV4cCI6MjEwMDE5MzA1OX0.tZM3I7Kx8_ACL4_HzZRvqSr31OmfuueJs9_Ml7ldgHA"; 
 const BUCKET_NAME = "memoiren-files";
@@ -25,8 +25,9 @@ let activeBubbleId = null;
 let currentAction = null;
 let currentNotebookIndex = null;
 let currentPageIndex = 0;
+let activeGroupRecordingIndex = null;
 
-// 4. إعداد الخريطة الذهنية بألوان (Soft Pastel)
+// 4. إعداد الخريطة الذهنية مع التثبيت عند الدخول لمنع القفز العشوائي
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
@@ -40,7 +41,11 @@ const options = {
         borderWidth: 2, shadow: { enabled: true, color: "rgba(74, 93, 84, 0.04)", size: 12 }
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 2 },
-    physics: { solver: "repulsion", repulsion: { nodeDistance: 150 } },
+    physics: { 
+        solver: "repulsion", 
+        repulsion: { nodeDistance: 150 },
+        stabilization: { enabled: true, iterations: 1000, updateInterval: 50, fit: true }
+    },
     interaction: { hover: true },
     manipulation: { enabled: false, addEdge: async function(edgeData, callback) {
         if(edgeData.from !== edgeData.to) {
@@ -50,6 +55,11 @@ const options = {
     }}
 };
 const network = new vis.Network(container, data, options);
+
+// تثبيت الكرات فور انتهاء الاستقرار الأول لمنع أي حركة مزعجة عند فتح الموقع
+network.once("stabilizationIterationsDone", function () {
+    network.setOptions({ physics: false });
+});
 
 // 5. المزامنة مع Firebase
 onSnapshot(collection(db, "bubbles"), (snapshot) => {
@@ -89,7 +99,7 @@ document.getElementById("bubbleBasket").addEventListener("dragend", async (e) =>
     const pos = network.DOMtoCanvas({ x: e.clientX, y: e.clientY });
     await addDoc(collection(db, "bubbles"), {
         title: "Neuer Gedanke", x: pos.x, y: pos.y,
-        content: { quickNotes: [], notebooks: [], audios: [], photos: [] }
+        content: { quickNotes: [], notebooks: [], audioGroups: [], photos: [] }
     });
 });
 
@@ -138,40 +148,82 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
     }
 });
 
+// 8. إدارة المجموعات الصوتية والتسجيل
 let mediaRecorder, audioChunks = [];
-document.getElementById("recordAudioBtn").addEventListener("click", async () => {
-    const btn = document.getElementById("recordAudioBtn");
-    const timer = document.getElementById("recordingTimer");
-    if (mediaRecorder && mediaRecorder.state === "recording") {
+
+window.addAudioGroup = async () => {
+    const b = nodesData.get(activeBubbleId);
+    if (!b.content.audioGroups) b.content.audioGroups = [];
+    b.content.audioGroups.push({ id: Date.now(), title: "مجموعة جديدة", description: "شرح المجموعة هنا...", isOpen: false, audios: [] });
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.toggleAudioGroup = async (gIdx, isOpen) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.audioGroups[gIdx].isOpen = isOpen;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.updateAudioGroupField = async (gIdx, field, value) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.audioGroups[gIdx][field] = value;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.deleteAudioGroup = async (gIdx) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.audioGroups.splice(gIdx, 1);
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.startGroupRecording = async (gIdx) => {
+    const btn = document.getElementById(`recBtn_${gIdx}`);
+    if (mediaRecorder && mediaRecorder.state === "recording" && activeGroupRecordingIndex === gIdx) {
         mediaRecorder.stop();
-        btn.innerText = "Aufnahme starten"; timer.style.display = "none";
+        btn.innerText = "تسجيل صوتي جديد";
+        activeGroupRecordingIndex = null;
     } else {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
+            activeGroupRecordingIndex = gIdx;
+            
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.start();
-            btn.innerText = "Stoppen & Speichern"; timer.style.display = "inline";
+            btn.innerText = "إيقاف الحفظ ⏹️";
+            
             mediaRecorder.onstop = async () => {
                 const file = new File([new Blob(audioChunks, { type: "audio/webm" })], "record.webm", {type: "audio/webm"});
                 audioChunks = [];
                 const url = await uploadToSupabase(file);
                 if(url){
                     const b = nodesData.get(activeBubbleId);
-                    if (!b.content.audios) b.content.audios = [];
-                    b.content.audios.push({ id: Date.now(), title: "Audioaufnahme", url });
+                    if (!b.content.audioGroups[gIdx].audios) b.content.audioGroups[gIdx].audios = [];
+                    b.content.audioGroups[gIdx].audios.push({ id: Date.now(), title: "تسجيل صوتي", url });
                     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
                 }
             };
         } catch (err) {
-            console.error("Microphone access error:", err);
-            alert("يرجى التأكد من السماح للمتصفح بالوصول إلى الميكروفون.");
+            console.error("Microphone error:", err);
+            alert("يرجى السماح للمتصفح بالوصول إلى الميكروفون.");
         }
     }
-});
+};
 
-// 8. إدارة التبويبات وعرض المحتوى
+window.updateGroupAudioTitle = async (gIdx, aIdx, title) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.audioGroups[gIdx].audios[aIdx].title = title;
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+window.deleteGroupAudio = async (gIdx, aIdx) => {
+    const b = nodesData.get(activeBubbleId);
+    b.content.audioGroups[gIdx].audios.splice(aIdx, 1);
+    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+};
+
+// 9. إدارة التبويبات وعرض المحتوى
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {
         document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
@@ -186,7 +238,8 @@ document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
 });
 
 function renderContent(id) {
-    const content = nodesData.get(id).content || { quickNotes: [], notebooks: [], audios: [], photos: [] };
+    const bubble = nodesData.get(id);
+    const content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [] };
     
     document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
         <div class="item-card">
@@ -210,14 +263,48 @@ function renderContent(id) {
             </div>
         </div>`).join("");
         
-    document.getElementById("audiosList").innerHTML = (content.audios || []).map((a, i) => `
-        <div class="item-card">
-            <input type="text" value="${a.title}" onchange="updateData('audios', ${i}, 'title', this.value)">
-            <audio controls src="${a.url}" style="width:100%; margin-top:5px;"></audio>
-            <div class="item-actions">
-                <button class="btn-icon-text" style="color:var(--danger-color)" onclick="askDelete('audios', ${i})">Löschen</button>
-            </div>
-        </div>`).join("");
+    // عرض مجموعات الأصوات الفرعية بالهيكل المطلوب
+    document.getElementById("audiosList").innerHTML = `
+        <button class="btn-primary" onclick="addAudioGroup()" style="margin-bottom: 15px; width: 100%;">مجموعة أصوات جديدة +</button>
+        <div id="audioGroupsContainer">
+            ${(content.audioGroups || []).map((group, gIdx) => `
+                <div class="item-card" style="border: 1px solid #E4ECE7; padding: 15px; border-radius: 12px; margin-bottom: 12px; background: #fff;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                        <div style="flex-grow: 1;">
+                            <input type="text" value="${group.title}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" style="font-weight: bold; border: none; font-size: 16px; width: 100%; background: transparent; color: #4A5D54;" placeholder="عنوان المجموعة">
+                            <input type="text" value="${group.description || ''}" onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" style="border: none; font-size: 13px; color: #77887d; width: 100%; background: transparent; margin-top: 4px;" placeholder="شرح المجموعة...">
+                        </div>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            ${group.isOpen ? 
+                                `<button class="btn-icon-text" onclick="toggleAudioGroup(${gIdx}, false)" style="background: #F2F7F4; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #4A5D54;">إخفاء</button>` : 
+                                `<button class="btn-icon-text" onclick="toggleAudioGroup(${gIdx}, true)" style="background: #E4ECE7; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #2C3E35;">أظهر الكل</button>`
+                            }
+                            <button class="btn-icon-text" onclick="deleteAudioGroup(${gIdx})" style="color:var(--danger-color); padding: 6px;" title="حذف المجموعة">🗑️</button>
+                        </div>
+                    </div>
+                    
+                    ${group.isOpen ? `
+                        <div style="margin-top: 15px; border-top: 1px solid #E4ECE7; padding-top: 15px;">
+                            <div style="margin-bottom: 12px;">
+                                <button class="btn-primary" onclick="startGroupRecording(${gIdx})" id="recBtn_${gIdx}" style="font-size: 13px; padding: 8px 14px;">تسجيل صوتي جديد</button>
+                            </div>
+                            <div class="group-audios-list" style="display: flex; flex-direction: column; gap: 8px;">
+                                ${(group.audios || []).map((a, aIdx) => `
+                                    <div style="background: #F9FBF9; padding: 10px; border-radius: 8px; border: 1px solid #EFEFEF;">
+                                        <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" style="border:none; background:transparent; font-weight:600; width:100%; color: #333;">
+                                        <audio controls src="${a.url}" style="width:100%; margin-top:6px;"></audio>
+                                        <div style="text-align: left; margin-top: 4px;">
+                                            <button class="btn-icon-text" style="color:var(--danger-color); font-size:11px;" onclick="deleteGroupAudio(${gIdx}, ${aIdx})">حذف الصوت</button>
+                                        </div>
+                                    </div>
+                                `).join("")}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join("")}
+        </div>
+    `;
 
     document.getElementById("photosList").innerHTML = (content.photos || []).map((p, i) => `
         <div class="photo-wrapper">
@@ -246,7 +333,7 @@ document.getElementById("addNotebookBtn").addEventListener("click", async () => 
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 });
 
-// 9. منطق صفحات الدفتر المفتوح
+// 10. منطق صفحات الدفتر المفتوح
 window.openNotebook = (index) => {
     currentNotebookIndex = index; currentPageIndex = 0;
     const b = nodesData.get(activeBubbleId);
@@ -292,7 +379,7 @@ document.getElementById("nextPageBtn").addEventListener("click", async () => {
 });
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
 
-// 10. الحذف والنقل
+// 11. الحذف والنقل
 window.askDelete = (type, index) => {
     currentAction = { action: 'deleteItem', type, index };
     document.getElementById("confirmModal").classList.add("active");
