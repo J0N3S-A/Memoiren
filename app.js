@@ -501,5 +501,3 @@ document.getElementById("actionMoveBtn").addEventListener("click", async () => {
     await updateDoc(doc(db, "bubbles", targetId), { content: targetB.content });
     document.getElementById("moveModal").classList.remove("active");
 });
-
-```
