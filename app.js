@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// 1. إعدادات Firebase
+// 1. Firebase Config
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
     authDomain: "memo-8ea40.firebaseapp.com",
@@ -13,12 +13,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 2. إعدادات Supabase
+// 2. Supabase Config
 const SUPABASE_URL = "https://slcjqnexveclbtvjxeuc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsY2pxbmV4dmVjbGJ0dmp4ZXVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTcwNTksImV4cCI6MjEwMDE5MzA1OX0.tZM3I7Kx8_ACL4_HzZRvqSr31OmfuueJs9_Ml7ldgHA"; 
 const BUCKET_NAME = "memoiren-files";
 
-// 3. المتغيرات العامة
+// 3. Global Variables
 let nodesData = new vis.DataSet([]);
 let edgesData = new vis.DataSet([]);
 let activeBubbleId = null;
@@ -27,7 +27,7 @@ let currentNotebookIndex = null;
 let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
 
-// 4. إعداد الخريطة الذهنية (مع تمويه الفيزياء في أول ثانيتين فقط)
+// 4. Mindmap Setup (Physics DISABLED by default to prevent jumping)
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
@@ -41,13 +41,11 @@ const options = {
         borderWidth: 2, shadow: { enabled: true, color: "rgba(74, 93, 84, 0.04)", size: 12 }
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 2 },
-    
-    // إعدادات الفيزياء المتطورة
     physics: {
-        enabled: false, // إيقافها أولاً لمنع القفز المزعج عند الدخول
+        enabled: false, // مغلقة تماماً عند فتح الموقع وبصورة دائمة
         solver: "barnesHut",
         barnesHut: {
-            gravitationalConstant: -3000,
+            gravitationalConstant: -2000,
             centralGravity: 0.3,
             springLength: 95,
             springConstant: 0.04,
@@ -64,13 +62,16 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// تفعيل الفيزياء السلسة والممتعة تلقائياً بعد ثانيتين من الفتح
-setTimeout(() => {
-    network.setOptions({ physics: { enabled: true } });
-}, 2000);
+// تفعيل الفيزياء فقط عند بدء اللمس/السحب
+network.on("dragStart", function (params) {
+    if (params.nodes.length > 0) {
+        network.setOptions({ physics: { enabled: true } });
+    }
+});
 
-// حفظ موقع الكرة الجديد فور سحبها يدوياً
+// إيقاف الفيزياء فور ترك الكرة وحفظ موقعها
 network.on("dragEnd", async function (params) {
+    network.setOptions({ physics: { enabled: false } });
     if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
         const position = network.getPosition(nodeId);
@@ -81,7 +82,7 @@ network.on("dragEnd", async function (params) {
     }
 });
 
-// 5. المزامنة مع Firebase
+// 5. Firebase Sync
 onSnapshot(collection(db, "bubbles"), (snapshot) => {
     snapshot.docChanges().forEach((change) => {
         const d = change.doc.data();
@@ -99,7 +100,7 @@ onSnapshot(collection(db, "connections"), (snapshot) => {
     });
 });
 
-// 6. تفاعلات الواجهة الرئيسية
+// 6. UI Interactions
 document.getElementById("connectSwitch").addEventListener("change", (e) => {
     if (e.target.checked) network.addEdgeMode();
     else network.disableEditMode();
@@ -123,7 +124,7 @@ document.getElementById("bubbleBasket").addEventListener("dragend", async (e) =>
     });
 });
 
-// 7. دوال الرفع إلى Supabase
+// 7. Supabase Upload Logic
 async function uploadToSupabase(file) {
     try {
         const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
@@ -168,13 +169,13 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
     }
 });
 
-// 8. إدارة المجموعات الصوتية والتسجيل الداخلي
+// 8. Audio Groups Logic (German Interface)
 let mediaRecorder, audioChunks = [];
 
 window.addAudioGroup = async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.audioGroups) b.content.audioGroups = [];
-    b.content.audioGroups.push({ id: Date.now(), title: "مجموعة جديدة", description: "", isOpen: true, audios: [] });
+    b.content.audioGroups.push({ id: Date.now(), title: "Neue Gruppe", description: "", isOpen: true, audios: [] });
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
@@ -200,7 +201,7 @@ window.startGroupRecording = async (gIdx) => {
     const btn = document.getElementById(`recBtn_${gIdx}`);
     if (mediaRecorder && mediaRecorder.state === "recording" && activeGroupRecordingIndex === gIdx) {
         mediaRecorder.stop();
-        if (btn) btn.innerHTML = "🎙️ بدء تسجيل صوتي جديد";
+        if (btn) btn.innerHTML = "🎙️ Neue Aufnahme starten";
         activeGroupRecordingIndex = null;
     } else {
         try {
@@ -211,7 +212,7 @@ window.startGroupRecording = async (gIdx) => {
             
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.start();
-            if (btn) btn.innerHTML = "⏹️ جاري التسجيل... اضغط للإيقاف والحفظ";
+            if (btn) btn.innerHTML = "⏹️ Aufnahme läuft... Zum Stoppen klicken";
             
             mediaRecorder.onstop = async () => {
                 const file = new File([new Blob(audioChunks, { type: "audio/webm" })], "record.webm", {type: "audio/webm"});
@@ -220,13 +221,13 @@ window.startGroupRecording = async (gIdx) => {
                 if(url){
                     const b = nodesData.get(activeBubbleId);
                     if (!b.content.audioGroups[gIdx].audios) b.content.audioGroups[gIdx].audios = [];
-                    b.content.audioGroups[gIdx].audios.push({ id: Date.now(), title: "تسجيل صوتي", url });
+                    b.content.audioGroups[gIdx].audios.push({ id: Date.now(), title: "Sprachaufnahme", url });
                     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
                 }
             };
         } catch (err) {
             console.error("Microphone error:", err);
-            alert("يرجى السماح للمتصفح بالوصول إلى الميكروفون.");
+            alert("Bitte erlauben Sie den Zugriff auf das Mikrofon.");
         }
     }
 };
@@ -243,7 +244,7 @@ window.deleteGroupAudio = async (gIdx, aIdx) => {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
-// 9. إدارة التبويبات وعرض المحتوى
+// 9. Tab Management & Content Rendering (German UI & Old Audio Recovery)
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {
         document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
@@ -259,9 +260,25 @@ document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
 
 function renderContent(id) {
     const bubble = nodesData.get(id);
-    const content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [] };
+    if (!bubble) return;
     
-    // الملاحظات السريعة
+    let content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [] };
+
+    // **استرجاع تلقائي للأصوات القديمة التي لم تكن داخل مجموعات**
+    if (content.audios && content.audios.length > 0) {
+        if (!content.audioGroups) content.audioGroups = [];
+        content.audioGroups.unshift({
+            id: Date.now(),
+            title: "Einzelne Aufnahmen",
+            description: "Frühere Sprachaufnahmen",
+            isOpen: true,
+            audios: [...content.audios]
+        });
+        delete content.audios; // تحويل الأرشيف القديم
+        updateDoc(doc(db, "bubbles", id), { content: content });
+    }
+
+    // Quick Notes
     document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
         <div class="item-card">
             <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
@@ -272,7 +289,7 @@ function renderContent(id) {
             </div>
         </div>`).join("");
 
-    // الدفاتر
+    // Notebooks
     document.getElementById("notebooksList").innerHTML = (content.notebooks || []).map((nb, i) => `
         <div class="notebook-cover">
             <input type="text" class="notebook-title-input" value="${nb.title}" onchange="updateData('notebooks', ${i}, 'title', this.value)">
@@ -285,69 +302,69 @@ function renderContent(id) {
             </div>
         </div>`).join("");
         
-    // مجموعات التسجيلات الصوتية
+    // Audio Groups (Full German UI)
     document.getElementById("audiosList").innerHTML = `
         <div style="margin-bottom: 15px;">
             <button class="btn-primary" onclick="addAudioGroup()" style="width: 100%; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer;">
-                + إضافة مجموعة صوتية جديدة
+                + Neue Audiogruppe hinzufügen
             </button>
         </div>
         <div id="audioGroupsContainer">
             ${(content.audioGroups || []).map((group, gIdx) => `
                 <div style="border: 2px solid #E4ECE7; padding: 16px; border-radius: 12px; margin-bottom: 16px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
                     
-                    <!-- شريط العنوان والتحكم -->
+                    <!-- Title & Controls -->
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
                         <div style="flex-grow: 1;">
-                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">عنوان المجموعة:</label>
+                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Gruppentitel:</label>
                             <input type="text" value="${group.title || ''}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" 
                                    style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;" 
-                                   placeholder="أدخل عنوان المجموعة هنا...">
+                                   placeholder="Gruppentitel hier eingeben...">
                         </div>
                         <div style="display: flex; gap: 6px; align-items: flex-end; padding-top: 15px;">
                             ${group.isOpen ? 
-                                `<button onclick="toggleAudioGroup(${gIdx}, false)" style="background: #E4ECE7; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">إخفاء 🙈</button>` : 
-                                `<button onclick="toggleAudioGroup(${gIdx}, true)" style="background: #D9EBE4; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">أظهر الكل 👁️</button>`
+                                `<button onclick="toggleAudioGroup(${gIdx}, false)" style="background: #E4ECE7; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Ausblenden 🙈</button>` : 
+                                `<button onclick="toggleAudioGroup(${gIdx}, true)" style="background: #D9EBE4; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Alle anzeigen 👁️</button>`
                             }
-                            <button onclick="deleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;" title="حذف المجموعة">🗑️</button>
+                            <button onclick="deleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;" title="Gruppe löschen">🗑️</button>
                         </div>
                     </div>
 
-                    <!-- مربع الشرح / الوصف -->
+                    <!-- Description Textarea -->
                     <div style="margin-bottom: 12px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">الشرح / التفاصيل:</label>
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Beschreibung / Details:</label>
                         <textarea onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" 
                                   style="width: 100%; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: #4A5D54; background: #FBFDFB; resize: vertical; min-height: 45px;" 
-                                  placeholder="أكتب نص الشرح لهذه المجموعة...">${group.description || ''}</textarea>
+                                  placeholder="Beschreibung für diese Gruppe eingeben...">${group.description || ''}</textarea>
                     </div>
                     
-                    <!-- المحتوى المفتوح للمجموعة -->
+                    <!-- Group Body -->
                     ${group.isOpen ? `
                         <div style="margin-top: 14px; border-top: 2px dashed #E4ECE7; padding-top: 14px; background: #F9FBF9; padding: 12px; border-radius: 8px;">
                             <div style="margin-bottom: 14px; text-align: center;">
                                 <button onclick="startGroupRecording(${gIdx})" id="recBtn_${gIdx}" 
                                         style="background: #4A5D54; color: #FFF; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">
-                                    🎙️ بدء تسجيل صوتي جديد
+                                    🎙️ Neue Aufnahme starten
                                 </button>
                             </div>
                             
-                            <!-- قائمة التسجيلات داخل المجموعة -->
+                            <!-- Audios List inside Group -->
                             <div style="display: flex; flex-direction: column; gap: 10px;">
                                 ${(group.audios && group.audios.length > 0) ? group.audios.map((a, aIdx) => `
                                     <div style="background: #FFF; padding: 10px 12px; border-radius: 8px; border: 1px solid #E0E7E3;">
                                         <div style="margin-bottom: 6px;">
                                             <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" 
                                                    style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0; color: #333;" 
-                                                   placeholder="عنوان التسجيل...">
+                                                   placeholder="Titel der Aufnahme...">
                                         </div>
                                         <audio controls src="${a.url}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
                                         <div style="text-align: left; margin-top: 6px;">
                                             <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="deleteGroupAudio(${gIdx}, ${aIdx})">
-                                                حذف هذا الصوت 🗑️
+                                                Aufnahme löschen 🗑️
                                             </button>
                                         </div>
                                     </div>
-                                `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">لا توجد تسجيلات صوتية في هذه المجموعة حتى الآن.</div>'}
+                                `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">Keine Sprachaufnahmen in dieser Gruppe vorhanden.</div>'}
                             </div>
                         </div>
                     ` : ''}
@@ -356,7 +373,7 @@ function renderContent(id) {
         </div>
     `;
 
-    // الصور
+    // Photos
     document.getElementById("photosList").innerHTML = (content.photos || []).map((p, i) => `
         <div class="photo-wrapper">
             <img src="${p.url}">
@@ -384,7 +401,7 @@ document.getElementById("addNotebookBtn").addEventListener("click", async () => 
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 });
 
-// 10. منطق صفحات الدفتر المفتوح
+// 10. Notebook Logic
 window.openNotebook = (index) => {
     currentNotebookIndex = index; currentPageIndex = 0;
     const b = nodesData.get(activeBubbleId);
@@ -430,7 +447,7 @@ document.getElementById("nextPageBtn").addEventListener("click", async () => {
 });
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
 
-// 11. الحذف والنقل
+// 11. Delete & Move Logic
 window.askDelete = (type, index) => {
     currentAction = { action: 'deleteItem', type, index };
     document.getElementById("confirmModal").classList.add("active");
