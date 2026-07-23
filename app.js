@@ -27,7 +27,7 @@ let currentNotebookIndex = null;
 let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
 
-// 4. إعداد الخريطة الذهنية مع التثبيت عند الدخول لمنع القفز العشوائي
+// 4. إعداد الخريطة الذهنية (مع إيقاف الفيزياء تماماً لمنع الحركة والقفز)
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
@@ -41,12 +41,8 @@ const options = {
         borderWidth: 2, shadow: { enabled: true, color: "rgba(74, 93, 84, 0.04)", size: 12 }
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 2 },
-    physics: { 
-        solver: "repulsion", 
-        repulsion: { nodeDistance: 150 },
-        stabilization: { enabled: true, iterations: 1000, updateInterval: 50, fit: true }
-    },
-    interaction: { hover: true },
+    physics: false, // تعطيل الفيزياء يمنع القفز والحركة العشوائية نهائياً
+    interaction: { hover: true, dragNodes: true },
     manipulation: { enabled: false, addEdge: async function(edgeData, callback) {
         if(edgeData.from !== edgeData.to) {
             await addDoc(collection(db, "connections"), { from: edgeData.from, to: edgeData.to });
@@ -56,9 +52,16 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// تثبيت الكرات فور انتهاء الاستقرار الأول لمنع أي حركة مزعجة عند فتح الموقع
-network.once("stabilizationIterationsDone", function () {
-    network.setOptions({ physics: false });
+// حفظ موقع الكرة الجديد فور سحبها يدوياً
+network.on("dragEnd", async function (params) {
+    if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        const position = network.getPosition(nodeId);
+        await updateDoc(doc(db, "bubbles", nodeId), {
+            x: position.x,
+            y: position.y
+        });
+    }
 });
 
 // 5. المزامنة مع Firebase
@@ -148,13 +151,13 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
     }
 });
 
-// 8. إدارة المجموعات الصوتية والتسجيل
+// 8. إدارة المجموعات الصوتية والتسجيل الداخلي
 let mediaRecorder, audioChunks = [];
 
 window.addAudioGroup = async () => {
     const b = nodesData.get(activeBubbleId);
     if (!b.content.audioGroups) b.content.audioGroups = [];
-    b.content.audioGroups.push({ id: Date.now(), title: "مجموعة جديدة", description: "شرح المجموعة هنا...", isOpen: false, audios: [] });
+    b.content.audioGroups.push({ id: Date.now(), title: "مجموعة جديدة", description: "", isOpen: true, audios: [] });
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
@@ -180,7 +183,7 @@ window.startGroupRecording = async (gIdx) => {
     const btn = document.getElementById(`recBtn_${gIdx}`);
     if (mediaRecorder && mediaRecorder.state === "recording" && activeGroupRecordingIndex === gIdx) {
         mediaRecorder.stop();
-        btn.innerText = "تسجيل صوتي جديد";
+        if (btn) btn.innerHTML = "🎙️ بدء تسجيل صوتي جديد";
         activeGroupRecordingIndex = null;
     } else {
         try {
@@ -191,7 +194,7 @@ window.startGroupRecording = async (gIdx) => {
             
             mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.start();
-            btn.innerText = "إيقاف الحفظ ⏹️";
+            if (btn) btn.innerHTML = "⏹️ جاري التسجيل... اضغط للإيقاف والحفظ";
             
             mediaRecorder.onstop = async () => {
                 const file = new File([new Blob(audioChunks, { type: "audio/webm" })], "record.webm", {type: "audio/webm"});
@@ -241,6 +244,7 @@ function renderContent(id) {
     const bubble = nodesData.get(id);
     const content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [] };
     
+    // الملاحظات السريعة
     document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
         <div class="item-card">
             <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
@@ -251,6 +255,7 @@ function renderContent(id) {
             </div>
         </div>`).join("");
 
+    // الدفاتر
     document.getElementById("notebooksList").innerHTML = (content.notebooks || []).map((nb, i) => `
         <div class="notebook-cover">
             <input type="text" class="notebook-title-input" value="${nb.title}" onchange="updateData('notebooks', ${i}, 'title', this.value)">
@@ -263,41 +268,69 @@ function renderContent(id) {
             </div>
         </div>`).join("");
         
-    // عرض مجموعات الأصوات الفرعية بالهيكل المطلوب
+    // مجموعات التسجيلات الصوتية (تصميم واضح ومباشر)
     document.getElementById("audiosList").innerHTML = `
-        <button class="btn-primary" onclick="addAudioGroup()" style="margin-bottom: 15px; width: 100%;">مجموعة أصوات جديدة +</button>
+        <div style="margin-bottom: 15px;">
+            <button class="btn-primary" onclick="addAudioGroup()" style="width: 100%; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer;">
+                + إضافة مجموعة صوتية جديدة
+            </button>
+        </div>
         <div id="audioGroupsContainer">
             ${(content.audioGroups || []).map((group, gIdx) => `
-                <div class="item-card" style="border: 1px solid #E4ECE7; padding: 15px; border-radius: 12px; margin-bottom: 12px; background: #fff;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                <div style="border: 2px solid #E4ECE7; padding: 16px; border-radius: 12px; margin-bottom: 16px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
+                    
+                    <!-- شريط العنوان والتحكم -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
                         <div style="flex-grow: 1;">
-                            <input type="text" value="${group.title}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" style="font-weight: bold; border: none; font-size: 16px; width: 100%; background: transparent; color: #4A5D54;" placeholder="عنوان المجموعة">
-                            <input type="text" value="${group.description || ''}" onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" style="border: none; font-size: 13px; color: #77887d; width: 100%; background: transparent; margin-top: 4px;" placeholder="شرح المجموعة...">
+                            <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">عنوان المجموعة:</label>
+                            <input type="text" value="${group.title || ''}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" 
+                                   style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;" 
+                                   placeholder="أدخل عنوان المجموعة هنا...">
                         </div>
-                        <div style="display: flex; gap: 5px; align-items: center;">
+                        <div style="display: flex; gap: 6px; align-items: flex-end; padding-top: 15px;">
                             ${group.isOpen ? 
-                                `<button class="btn-icon-text" onclick="toggleAudioGroup(${gIdx}, false)" style="background: #F2F7F4; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #4A5D54;">إخفاء</button>` : 
-                                `<button class="btn-icon-text" onclick="toggleAudioGroup(${gIdx}, true)" style="background: #E4ECE7; padding: 6px 12px; border-radius: 6px; font-weight: 600; color: #2C3E35;">أظهر الكل</button>`
+                                `<button onclick="toggleAudioGroup(${gIdx}, false)" style="background: #E4ECE7; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">إخفاء 🙈</button>` : 
+                                `<button onclick="toggleAudioGroup(${gIdx}, true)" style="background: #D9EBE4; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">أظهر الكل 👁️</button>`
                             }
-                            <button class="btn-icon-text" onclick="deleteAudioGroup(${gIdx})" style="color:var(--danger-color); padding: 6px;" title="حذف المجموعة">🗑️</button>
+                            <button onclick="deleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;" title="حذف المجموعة">🗑️</button>
                         </div>
                     </div>
+
+                    <!-- مربع الشرح / الوصف -->
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">الشرح / التفاصيل:</label>
+                        <textarea onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" 
+                                  style="width: 100%; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: #4A5D54; background: #FBFDFB; resize: vertical; min-height: 45px;" 
+                                  placeholder="أكتب نص الشرح لهذه المجموعة...">${group.description || ''}</textarea>
+                    </div>
                     
+                    <!-- المحتوى المفتوح للمجموعة -->
                     ${group.isOpen ? `
-                        <div style="margin-top: 15px; border-top: 1px solid #E4ECE7; padding-top: 15px;">
-                            <div style="margin-bottom: 12px;">
-                                <button class="btn-primary" onclick="startGroupRecording(${gIdx})" id="recBtn_${gIdx}" style="font-size: 13px; padding: 8px 14px;">تسجيل صوتي جديد</button>
+                        <div style="margin-top: 14px; border-top: 2px dashed #E4ECE7; padding-top: 14px; background: #F9FBF9; padding: 12px; border-radius: 8px;">
+                            <div style="margin-bottom: 14px; text-align: center;">
+                                <button onclick="startGroupRecording(${gIdx})" id="recBtn_${gIdx}" 
+                                        style="background: #4A5D54; color: #FFF; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">
+                                    🎙️ بدء تسجيل صوتي جديد
+                                </button>
                             </div>
-                            <div class="group-audios-list" style="display: flex; flex-direction: column; gap: 8px;">
-                                ${(group.audios || []).map((a, aIdx) => `
-                                    <div style="background: #F9FBF9; padding: 10px; border-radius: 8px; border: 1px solid #EFEFEF;">
-                                        <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" style="border:none; background:transparent; font-weight:600; width:100%; color: #333;">
-                                        <audio controls src="${a.url}" style="width:100%; margin-top:6px;"></audio>
-                                        <div style="text-align: left; margin-top: 4px;">
-                                            <button class="btn-icon-text" style="color:var(--danger-color); font-size:11px;" onclick="deleteGroupAudio(${gIdx}, ${aIdx})">حذف الصوت</button>
+                            
+                            <!-- قائمة التسجيلات داخل المجموعة -->
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                ${(group.audios && group.audios.length > 0) ? group.audios.map((a, aIdx) => `
+                                    <div style="background: #FFF; padding: 10px 12px; border-radius: 8px; border: 1px solid #E0E7E3;">
+                                        <div style="margin-bottom: 6px;">
+                                            <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" 
+                                                   style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0; color: #333;" 
+                                                   placeholder="عنوان التسجيل...">
+                                        </div>
+                                        <audio controls src="${a.url}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
+                                        <div style="text-align: left; margin-top: 6px;">
+                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="deleteGroupAudio(${gIdx}, ${aIdx})">
+                                                حذف هذا الصوت 🗑️
+                                            </button>
                                         </div>
                                     </div>
-                                `).join("")}
+                                `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">لا توجد تسجيلات صوتية في هذه المجموعة حتى الآن.</div>'}
                             </div>
                         </div>
                     ` : ''}
@@ -306,6 +339,7 @@ function renderContent(id) {
         </div>
     `;
 
+    // الصور
     document.getElementById("photosList").innerHTML = (content.photos || []).map((p, i) => `
         <div class="photo-wrapper">
             <img src="${p.url}">
