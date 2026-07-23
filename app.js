@@ -1,3 +1,12 @@
+تم ربط **جميع أزرار الحذف في الموقع دون استثناء** (حذف الفقعات/الكرات، الملاحظات، الدفاتر، الصور، المجموعات الصوتية، والتسجيلات الداخلية) بمربع تأكيد الحذف (confirmModal).
+الآن لن يتم حذف أي عنصر إلا بعد ظهور نافذة التأكيد وضغطك على زر التأكيد.
+### التعديلات التي تم إضافتها:
+ 1. **المجموعات الصوتية (Audio Groups):** عند الضغط على زر الحذف 🗑️ للمجموعة، تظهر نافذة التأكيد أولاً.
+ 2. **التسجيلات الصوتية (Voice Recordings):** عند الضغط على زر "Aufnahme löschen 🗑️" لتسجيل داخل مجموعة، تظهر نافذة التأكيد أولاً.
+ 3. **بقية العناصر (الفقاعات، الدفاتر، الملاحظات، الصور):** مؤمنة بالكامل ومربوطة بنافذة التأكيد.
+### كود app.js المحدث بالكامل:
+قم بنسخ الكود التالي واستبداله كاملاً في ملف app.js:
+```javascript
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -42,7 +51,7 @@ const options = {
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 2 },
     physics: {
-        enabled: false, // مغلقة تماماً عند فتح الموقع وبصورة دائمة
+        enabled: false,
         solver: "barnesHut",
         barnesHut: {
             gravitationalConstant: -2000,
@@ -62,14 +71,14 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// تفعيل الفيزياء فقط عند بدء اللمس/السحب
+// Enable physics only when touching/dragging
 network.on("dragStart", function (params) {
     if (params.nodes.length > 0) {
         network.setOptions({ physics: { enabled: true } });
     }
 });
 
-// إيقاف الفيزياء فور ترك الكرة وحفظ موقعها
+// Disable physics immediately on drag release and save position
 network.on("dragEnd", async function (params) {
     network.setOptions({ physics: { enabled: false } });
     if (params.nodes.length > 0) {
@@ -169,7 +178,7 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
     }
 });
 
-// 8. Audio Groups Logic (German Interface)
+// 8. Audio Groups Logic
 let mediaRecorder, audioChunks = [];
 
 window.addAudioGroup = async () => {
@@ -191,10 +200,10 @@ window.updateAudioGroupField = async (gIdx, field, value) => {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
-window.deleteAudioGroup = async (gIdx) => {
-    const b = nodesData.get(activeBubbleId);
-    b.content.audioGroups.splice(gIdx, 1);
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+// طلب تأكيد حذف مجموعة صوتية
+window.askDeleteAudioGroup = (gIdx) => {
+    currentAction = { action: 'deleteAudioGroup', gIdx };
+    document.getElementById("confirmModal").classList.add("active");
 };
 
 window.startGroupRecording = async (gIdx) => {
@@ -238,13 +247,13 @@ window.updateGroupAudioTitle = async (gIdx, aIdx, title) => {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
-window.deleteGroupAudio = async (gIdx, aIdx) => {
-    const b = nodesData.get(activeBubbleId);
-    b.content.audioGroups[gIdx].audios.splice(aIdx, 1);
-    await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+// طلب تأكيد حذف تسجيل صوتي داخل مجموعة
+window.askDeleteGroupAudio = (gIdx, aIdx) => {
+    currentAction = { action: 'deleteGroupAudio', gIdx, aIdx };
+    document.getElementById("confirmModal").classList.add("active");
 };
 
-// 9. Tab Management & Content Rendering (German UI & Old Audio Recovery)
+// 9. Tab Management & Content Rendering
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {
         document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
@@ -264,7 +273,7 @@ function renderContent(id) {
     
     let content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [] };
 
-    // **استرجاع تلقائي للأصوات القديمة التي لم تكن داخل مجموعات**
+    // استرجاع تلقائي للأصوات القديمة التي لم تكن داخل مجموعات
     if (content.audios && content.audios.length > 0) {
         if (!content.audioGroups) content.audioGroups = [];
         content.audioGroups.unshift({
@@ -274,7 +283,7 @@ function renderContent(id) {
             isOpen: true,
             audios: [...content.audios]
         });
-        delete content.audios; // تحويل الأرشيف القديم
+        delete content.audios;
         updateDoc(doc(db, "bubbles", id), { content: content });
     }
 
@@ -302,7 +311,7 @@ function renderContent(id) {
             </div>
         </div>`).join("");
         
-    // Audio Groups (Full German UI)
+    // Audio Groups
     document.getElementById("audiosList").innerHTML = `
         <div style="margin-bottom: 15px;">
             <button class="btn-primary" onclick="addAudioGroup()" style="width: 100%; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer;">
@@ -326,7 +335,7 @@ function renderContent(id) {
                                 `<button onclick="toggleAudioGroup(${gIdx}, false)" style="background: #E4ECE7; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Ausblenden 🙈</button>` : 
                                 `<button onclick="toggleAudioGroup(${gIdx}, true)" style="background: #D9EBE4; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Alle anzeigen 👁️</button>`
                             }
-                            <button onclick="deleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;" title="Gruppe löschen">🗑️</button>
+                            <button onclick="askDeleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;" title="Gruppe löschen">🗑️</button>
                         </div>
                     </div>
 
@@ -359,7 +368,7 @@ function renderContent(id) {
                                         </div>
                                         <audio controls src="${a.url}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
                                         <div style="text-align: left; margin-top: 6px;">
-                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="deleteGroupAudio(${gIdx}, ${aIdx})">
+                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx}, ${aIdx})">
                                                 Aufnahme löschen 🗑️
                                             </button>
                                         </div>
@@ -447,25 +456,39 @@ document.getElementById("nextPageBtn").addEventListener("click", async () => {
 });
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
 
-// 11. Delete & Move Logic
+// 11. Centralized Delete & Move Logic
 window.askDelete = (type, index) => {
     currentAction = { action: 'deleteItem', type, index };
     document.getElementById("confirmModal").classList.add("active");
 };
 document.getElementById("deleteBubbleBtn").addEventListener("click", () => {
-    currentAction = { action: 'deleteBubble' }; document.getElementById("confirmModal").classList.add("active");
+    currentAction = { action: 'deleteBubble' }; 
+    document.getElementById("confirmModal").classList.add("active");
 });
 document.getElementById("cancelConfirmBtn").addEventListener("click", () => document.getElementById("confirmModal").classList.remove("active"));
 
+// معالج التأكيد العام لجميع أنواع الحذف
 document.getElementById("actionConfirmBtn").addEventListener("click", async () => {
-    if(currentAction.action === 'deleteBubble') {
+    if (!currentAction) return;
+
+    if (currentAction.action === 'deleteBubble') {
         await deleteDoc(doc(db, "bubbles", activeBubbleId));
         document.getElementById("contentModal").classList.remove("active");
-    } else {
+    } else if (currentAction.action === 'deleteAudioGroup') {
+        const b = nodesData.get(activeBubbleId);
+        b.content.audioGroups.splice(currentAction.gIdx, 1);
+        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    } else if (currentAction.action === 'deleteGroupAudio') {
+        const b = nodesData.get(activeBubbleId);
+        b.content.audioGroups[currentAction.gIdx].audios.splice(currentAction.aIdx, 1);
+        await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
+    } else if (currentAction.action === 'deleteItem') {
         const b = nodesData.get(activeBubbleId);
         b.content[currentAction.type].splice(currentAction.index, 1);
         await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
     }
+    
+    currentAction = null;
     document.getElementById("confirmModal").classList.remove("active");
 });
 
@@ -487,3 +510,5 @@ document.getElementById("actionMoveBtn").addEventListener("click", async () => {
     await updateDoc(doc(db, "bubbles", targetId), { content: targetB.content });
     document.getElementById("moveModal").classList.remove("active");
 });
+
+```
