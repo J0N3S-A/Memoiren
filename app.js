@@ -32,13 +32,13 @@ let innerNetwork = null;
 let innerNodesData = new vis.DataSet([]);
 let innerEdgesData = new vis.DataSet([]);
 
-// 4. Mindmap Setup (مضاعفة حجم الكرات والمسافات لمنع التداخل)
+// 4. Mindmap Setup (Main) - تكبير الحجم الحقيقي للضعف لزيادة التباعد
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
     nodes: {
         shape: "dot", 
-        size: 44, // تكبير الحجم الحقيقي للضعف لزيادة التباعد
+        size: 44, // حجم مضاعف
         color: { 
             background: "#F2F7F4", border: "#E4ECE7", 
             highlight: { background: "#D9EBE4", border: "#C2DACF" } 
@@ -49,12 +49,12 @@ const options = {
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 3 },
     physics: {
-        enabled: false,
+        enabled: false, // معطل افتراضياً لمنع القفز
         solver: "barnesHut",
         barnesHut: {
-            gravitationalConstant: -6000, // زيادة قوة التنافر لتباعد الكرات
+            gravitationalConstant: -6000, // تنافر قوي لتباعد الكرات
             centralGravity: 0.2,
-            springLength: 200, // زيادة طول الزنبرك لمضاعفة المسافة بين العقد
+            springLength: 200, // طول زنبرك مضاعف
             springConstant: 0.04,
             damping: 0.09
         }
@@ -69,14 +69,14 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// Enable physics only when touching/dragging
+// تفعيل الفيزياء فقط عند السحب لتتجاوب الكرات
 network.on("dragStart", function (params) {
     if (params.nodes.length > 0) {
         network.setOptions({ physics: { enabled: true } });
     }
 });
 
-// Disable physics immediately on drag release and save position
+// تعطيل الفيزياء فور إفلات الكرة وحفظ الإحداثيات
 network.on("dragEnd", async function (params) {
     network.setOptions({ physics: { enabled: false } });
     if (params.nodes.length > 0) {
@@ -118,7 +118,13 @@ network.on("doubleClick", (params) => {
         activeBubbleId = params.nodes[0];
         const bubble = nodesData.get(activeBubbleId);
         document.getElementById("bubbleTitleInput").value = bubble.label;
+        
+        // إظهار النافذة وتنشيط التبويب الأول افتراضياً
         document.getElementById("contentModal").classList.add("active");
+        document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
+        document.querySelector('[data-tab="tabQuickNotes"]').classList.add("active");
+        document.getElementById("tabQuickNotes").classList.add("active");
+        
         renderContent(activeBubbleId);
     }
 });
@@ -249,39 +255,40 @@ window.askDeleteGroupAudio = (gIdx, aIdx) => {
     document.getElementById("confirmModal").classList.add("active");
 };
 
-// 9. Tab Management & Content Rendering
+// 9. Tab Management & Inner Mindmap Initializer
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {
         document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
         e.currentTarget.classList.add("active");
         document.getElementById(e.currentTarget.dataset.tab).classList.add("active");
         
-        // إذا تم فتح تبويب الخريطة الذهنية الداخلية تقوم برسمها
+        // بناء الخريطة الداخلية فور الانتقال للتبويب الخاص بها
         if (e.currentTarget.dataset.tab === "tabInnerMindmap" && activeBubbleId) {
             initInnerMindmap(activeBubbleId);
         }
     });
 });
 
-document.getElementById("closeContentModal").addEventListener("click", () => document.getElementById("contentModal").classList.remove("active"));
+document.getElementById("closeContentModal").addEventListener("click", () => {
+    document.getElementById("contentModal").classList.remove("active");
+});
+
 document.getElementById("bubbleTitleInput").addEventListener("change", (e) => {
     if (activeBubbleId) {
         updateDoc(doc(db, "bubbles", activeBubbleId), { title: e.target.value });
-        // تحديث عنوان العقدة المركزية في الخريطة الداخلية إذا كانت مفتوحة
         if (innerNodesData.get("root")) {
             innerNodesData.update({ id: "root", label: e.target.value });
         }
     }
 });
 
-// حفظ الخريطة الداخلية في Firestore
+// وظائف الخريطة الذهنية الداخلية (Inner Mindmap)
 async function saveInnerMindmap() {
     if (!activeBubbleId) return;
     const b = nodesData.get(activeBubbleId);
     if (!b) return;
 
-    // استبعاد العقدة المركزية root من القائمة المكتوبة لتجنب التكرار
-    const rawNodes = innerNodesData.get().filter(n => n.id !== "root");
+    const rawNodes = innerNodesData.get().filter(n => n.id !== "root"); // استبعاد العقدة الأم
     const rawEdges = innerEdgesData.get();
 
     if (!b.content) b.content = {};
@@ -289,7 +296,6 @@ async function saveInnerMindmap() {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 }
 
-// تهيئة الخريطة الذهنية الداخلية داخل النافذة
 function initInnerMindmap(id) {
     const bubble = nodesData.get(id);
     if (!bubble) return;
@@ -299,14 +305,10 @@ function initInnerMindmap(id) {
 
     const innerDataSaved = (bubble.content && bubble.content.innerMindmap) ? bubble.content.innerMindmap : { nodes: [], edges: [] };
 
-    // تجهيز العقدة المركزية التي تمثل الكُرة الأصلية
     const centerNode = {
         id: "root",
         label: bubble.label || "Gedanke",
-        x: 0,
-        y: 0,
-        fixed: false,
-        size: 35,
+        x: 0, y: 0, fixed: false, size: 35,
         color: { background: "#4A5D54", border: "#2C3E35", highlight: { background: "#3B4B44", border: "#1E2B25" } },
         font: { color: "#FFFFFF", size: 15, face: "Plus Jakarta Sans" }
     };
@@ -322,7 +324,11 @@ function initInnerMindmap(id) {
             font: { family: "Plus Jakarta Sans", color: "#4A5D54", size: 13 }
         },
         edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, width: 2 },
-        physics: { enabled: true, solver: "barnesHut", barnesHut: { springLength: 120, gravitationalConstant: -3000 } },
+        physics: { 
+            enabled: true, // مفعّلة دائماً في الخريطة الداخلية
+            solver: "barnesHut", 
+            barnesHut: { springLength: 120, gravitationalConstant: -3000 } 
+        },
         interaction: { hover: true, dragNodes: true },
         manipulation: {
             enabled: false,
@@ -343,13 +349,11 @@ function initInnerMindmap(id) {
     });
 }
 
-// أزرار التحكم بالخريطة الداخلية
 window.addInnerNode = async () => {
     const title = prompt("عنوان العقدة الفرعية الجديدة:", "Neuer Untergedanke");
     if (!title) return;
     const newId = "sub_" + Date.now();
     innerNodesData.add({ id: newId, label: title, x: (Math.random() - 0.5) * 150, y: (Math.random() - 0.5) * 150 });
-    // ربط تلقائي بالعقدة المركزية عند الإنشاء
     innerEdgesData.add({ from: "root", to: newId });
     await saveInnerMindmap();
 };
@@ -365,14 +369,10 @@ window.deleteSelectedInnerElement = async () => {
     const selectedNodes = innerNetwork.getSelectedNodes();
     const selectedEdges = innerNetwork.getSelectedEdges();
 
-    // منع حذف العقدة المركزية الرئيسية
-    const nodesToDelete = selectedNodes.filter(id => id !== "root");
-    if (nodesToDelete.length > 0) {
-        innerNodesData.remove(nodesToDelete);
-    }
-    if (selectedEdges.length > 0) {
-        innerEdgesData.remove(selectedEdges);
-    }
+    const nodesToDelete = selectedNodes.filter(id => id !== "root"); // منع حذف الأساس
+    if (nodesToDelete.length > 0) innerNodesData.remove(nodesToDelete);
+    if (selectedEdges.length > 0) innerEdgesData.remove(selectedEdges);
+    
     await saveInnerMindmap();
 };
 
@@ -382,15 +382,11 @@ function renderContent(id) {
     
     let content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [], innerMindmap: { nodes: [], edges: [] } };
 
-    // استرجاع تلقائي للأصوات القديمة التي لم تكن داخل مجموعات
     if (content.audios && content.audios.length > 0) {
         if (!content.audioGroups) content.audioGroups = [];
         content.audioGroups.unshift({
-            id: Date.now(),
-            title: "Einzelne Aufnahmen",
-            description: "Frühere Sprachaufnahmen",
-            isOpen: true,
-            audios: [...content.audios]
+            id: Date.now(), title: "Einzelne Aufnahmen", description: "Frühere Sprachaufnahmen",
+            isOpen: true, audios: [...content.audios]
         });
         delete content.audios;
         updateDoc(doc(db, "bubbles", id), { content: content });
@@ -434,8 +430,7 @@ function renderContent(id) {
                         <div style="flex-grow: 1;">
                             <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Gruppentitel:</label>
                             <input type="text" value="${group.title || ''}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" 
-                                   style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;" 
-                                   placeholder="Gruppentitel hier eingeben...">
+                                   style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;">
                         </div>
                         <div style="display: flex; gap: 6px; align-items: flex-end; padding-top: 15px;">
                             ${group.isOpen ? 
@@ -446,32 +441,26 @@ function renderContent(id) {
                         </div>
                     </div>
                     <div style="margin-bottom: 12px;">
-                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Beschreibung / Details:</label>
+                        <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Beschreibung:</label>
                         <textarea onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" 
-                                  style="width: 100%; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: #4A5D54; background: #FBFDFB; resize: vertical; min-height: 45px;" 
-                                  placeholder="Beschreibung für diese Gruppe eingeben...">${group.description || ''}</textarea>
+                                  style="width: 100%; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: #4A5D54; background: #FBFDFB; resize: vertical; min-height: 45px;">${group.description || ''}</textarea>
                     </div>
                     ${group.isOpen ? `
                         <div style="margin-top: 14px; border-top: 2px dashed #E4ECE7; padding-top: 14px; background: #F9FBF9; padding: 12px; border-radius: 8px;">
                             <div style="margin-bottom: 14px; text-align: center;">
                                 <button onclick="startGroupRecording(${gIdx})" id="recBtn_${gIdx}" 
-                                        style="background: #4A5D54; color: #FFF; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">
-                                    🎙️ Neue Aufnahme starten
-                                </button>
+                                        style="background: #4A5D54; color: #FFF; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">🎙️ Neue Aufnahme starten</button>
                             </div>
                             <div style="display: flex; flex-direction: column; gap: 10px;">
                                 ${(group.audios && group.audios.length > 0) ? group.audios.map((a, aIdx) => `
                                     <div style="background: #FFF; padding: 10px 12px; border-radius: 8px; border: 1px solid #E0E7E3;">
                                         <div style="margin-bottom: 6px;">
                                             <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" 
-                                                   style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0; color: #333;" 
-                                                   placeholder="Titel der Aufnahme...">
+                                                   style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0;">
                                         </div>
                                         <audio controls src="${a.url}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
                                         <div style="text-align: left; margin-top: 6px;">
-                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx}, ${aIdx})">
-                                                Aufnahme löschen 🗑️
-                                            </button>
+                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx}, ${aIdx})">Aufnahme löschen 🗑️</button>
                                         </div>
                                     </div>
                                 `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">Keine Sprachaufnahmen in dieser Gruppe vorhanden.</div>'}
@@ -490,7 +479,7 @@ function renderContent(id) {
             <button class="delete-btn" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); width:28px; height:28px; border-radius:50%; display:flex; justify-content:center; align-items:center;" onclick="askDelete('photos', ${i})">&times;</button>
         </div>`).join("");
 
-    // Inner Mindmap Tab HTML Rendering
+    // إنشاء أزرار الخريطة الذهنية الداخلية
     const innerTabEl = document.getElementById("tabInnerMindmap");
     if (innerTabEl) {
         innerTabEl.innerHTML = `
