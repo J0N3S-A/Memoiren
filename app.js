@@ -38,7 +38,7 @@ const data = { nodes: nodesData, edges: edgesData };
 const options = {
     nodes: {
         shape: "dot", 
-        size: 60, // تكبير الحجم الحقيقي للضعف لزيادة التباعد
+        size: 44, // تكبير الحجم الحقيقي للضعف لزيادة التباعد
         color: { 
             background: "#F2F7F4", border: "#E4ECE7", 
             highlight: { background: "#D9EBE4", border: "#C2DACF" } 
@@ -53,7 +53,7 @@ const options = {
         solver: "barnesHut",
         barnesHut: {
             gravitationalConstant: -8000, // زيادة قوة التنافر لتباعد الكرات
-            centralGravity: 0.2,
+            centralGravity: 0.8,
             springLength: 300, // زيادة طول الزنبرك لمضاعفة المسافة بين العقد
             springConstant: 0.04,
             damping: 0.09
