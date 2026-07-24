@@ -54,7 +54,7 @@ const options = {
         barnesHut: {
             gravitationalConstant: -6000, // زيادة قوة التنافر لتباعد الكرات
             centralGravity: 0.2,
-            springLength: 200, // زيادة طول الزنبرك لمضاعفة المسافة بين العقد
+            springLength: 400, // زيادة طول الزنبرك لمضاعفة المسافة بين العقد
             springConstant: 0.04,
             damping: 0.09
         }
