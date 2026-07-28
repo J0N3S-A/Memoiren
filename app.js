@@ -27,7 +27,7 @@ let currentNotebookIndex = null;
 let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
 
-// 4. Mindmap Setup (Physics DISABLED by default to prevent jumping)
+// 4. Mindmap Setup (Physics DISABLED by default)
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
@@ -62,16 +62,8 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// Enable physics only when touching/dragging
-network.on("dragStart", function (params) {
-    if (params.nodes.length > 0) {
-        network.setOptions({ physics: { enabled: true } });
-    }
-});
-
-// Disable physics immediately on drag release and save position
+// حفظ الموقع عند إفلات الكرات بعد السحب
 network.on("dragEnd", async function (params) {
-    network.setOptions({ physics: { enabled: false } });
     if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
         const position = network.getPosition(nodeId);
@@ -100,7 +92,31 @@ onSnapshot(collection(db, "connections"), (snapshot) => {
     });
 });
 
-// 6. UI Interactions
+// 6. UI Interactions & Dynamic Injection for Physics Switch
+(function injectPhysicsSwitchUI() {
+    const connectSwitch = document.getElementById("connectSwitch");
+    if (connectSwitch) {
+        const parentLabel = connectSwitch.closest("label") || connectSwitch.parentElement;
+        if (parentLabel) {
+            const physicsWrapper = document.createElement("div");
+            physicsWrapper.style.marginTop = "8px";
+            physicsWrapper.innerHTML = `
+                <label class="${parentLabel.className || 'switch-container'}" style="${parentLabel.getAttribute('style') || ''}">
+                    <span>Körperliche Bewegung</span>
+                    <input type="checkbox" id="physicsSwitch">
+                    <span class="slider"></span>
+                </label>
+            `;
+            parentLabel.parentNode.insertBefore(physicsWrapper, parentLabel.nextSibling);
+
+            // تفعيل/إلغاء الفيزيائية من خلال الزر
+            document.getElementById("physicsSwitch").addEventListener("change", (e) => {
+                network.setOptions({ physics: { enabled: e.target.checked } });
+            });
+        }
+    }
+})();
+
 document.getElementById("connectSwitch").addEventListener("change", (e) => {
     if (e.target.checked) network.addEdgeMode();
     else network.disableEditMode();
@@ -191,7 +207,6 @@ window.updateAudioGroupField = async (gIdx, field, value) => {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
-// طلب تأكيد حذف مجموعة صوتية
 window.askDeleteAudioGroup = (gIdx) => {
     currentAction = { action: 'deleteAudioGroup', gIdx };
     document.getElementById("confirmModal").classList.add("active");
@@ -238,7 +253,6 @@ window.updateGroupAudioTitle = async (gIdx, aIdx, title) => {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 };
 
-// طلب تأكيد حذف تسجيل صوتي داخل مجموعة
 window.askDeleteGroupAudio = (gIdx, aIdx) => {
     currentAction = { action: 'deleteGroupAudio', gIdx, aIdx };
     document.getElementById("confirmModal").classList.add("active");
@@ -264,7 +278,6 @@ function renderContent(id) {
     
     let content = bubble.content || { quickNotes: [], notebooks: [], audioGroups: [], photos: [] };
 
-    // استرجاع تلقائي للأصوات القديمة التي لم تكن داخل مجموعات
     if (content.audios && content.audios.length > 0) {
         if (!content.audioGroups) content.audioGroups = [];
         content.audioGroups.unshift({
@@ -313,7 +326,6 @@ function renderContent(id) {
             ${(content.audioGroups || []).map((group, gIdx) => `
                 <div style="border: 2px solid #E4ECE7; padding: 16px; border-radius: 12px; margin-bottom: 16px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
                     
-                    <!-- Title & Controls -->
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
                         <div style="flex-grow: 1;">
                             <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Gruppentitel:</label>
@@ -330,7 +342,6 @@ function renderContent(id) {
                         </div>
                     </div>
 
-                    <!-- Description Textarea -->
                     <div style="margin-bottom: 12px;">
                         <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Beschreibung / Details:</label>
                         <textarea onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" 
@@ -338,7 +349,6 @@ function renderContent(id) {
                                   placeholder="Beschreibung für diese Gruppe eingeben...">${group.description || ''}</textarea>
                     </div>
                     
-                    <!-- Group Body -->
                     ${group.isOpen ? `
                         <div style="margin-top: 14px; border-top: 2px dashed #E4ECE7; padding-top: 14px; background: #F9FBF9; padding: 12px; border-radius: 8px;">
                             <div style="margin-bottom: 14px; text-align: center;">
@@ -348,7 +358,6 @@ function renderContent(id) {
                                 </button>
                             </div>
                             
-                            <!-- Audios List inside Group -->
                             <div style="display: flex; flex-direction: column; gap: 10px;">
                                 ${(group.audios && group.audios.length > 0) ? group.audios.map((a, aIdx) => `
                                     <div style="background: #FFF; padding: 10px 12px; border-radius: 8px; border: 1px solid #E0E7E3;">
@@ -458,7 +467,6 @@ document.getElementById("deleteBubbleBtn").addEventListener("click", () => {
 });
 document.getElementById("cancelConfirmBtn").addEventListener("click", () => document.getElementById("confirmModal").classList.remove("active"));
 
-// معالج التأكيد العام لجميع أنواع الحذف
 document.getElementById("actionConfirmBtn").addEventListener("click", async () => {
     if (!currentAction) return;
 
@@ -500,3 +508,5 @@ document.getElementById("actionMoveBtn").addEventListener("click", async () => {
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: sourceB.content });
     await updateDoc(doc(db, "bubbles", targetId), { content: targetB.content });
     document.getElementById("moveModal").classList.remove("active");
+});
+
