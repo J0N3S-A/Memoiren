@@ -62,8 +62,15 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// حفظ الموقع عند إفلات الكرات بعد السحب
+// حفظ الموقع عند إفلات الكرات بعد السحب (فقط إذا كانت الفيزياء معطلة)
 network.on("dragEnd", async function (params) {
+    const physicsSwitch = document.getElementById("physicsSwitch");
+    
+    // إذا كان زر الفيزياء مفعّلاً، لا تحفظ أي موقع في Firebase
+    if (physicsSwitch && physicsSwitch.checked) {
+        return; 
+    }
+
     if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
         const position = network.getPosition(nodeId);
