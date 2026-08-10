@@ -52,7 +52,7 @@ body {
 .logo { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.3rem; letter-spacing: -0.5px; }
 .logo-icon { width: 24px; height: 24px; stroke: var(--accent-hover); fill: none; stroke-width: 2.5; }
 
-.switch-container { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; color: var(--text-secondary); }
+.switch-container { display: flex; align-items: center; gap: 12px; font-size: 0.7rem; font-weight: 600; cursor: pointer; color: var(--text-secondary); }
 .switch-container input { display: none; }
 .slider { width: 48px; height: 26px; background-color: #E8F0EC; border-radius: 20px; position: relative; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
 .slider::before { content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%; background-color: white; top: 4px; left: 4px; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
