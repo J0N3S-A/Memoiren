@@ -1,76 +1,144 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <title>Main Mindmap</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memoiren - Gedankennetz</title>
+    
+    <!-- خط Plus Jakarta Sans لستايل نظيف وحديث -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <link rel="stylesheet" href="style.css"> <!-- تأكد من ربط ملف الـ CSS الخاص بك هنا -->
-    <style>
-        /* أنماط أساسية لضمان عمل الواجهة المنبثقة والتبويبات */
-        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-        #mindmap { width: 100%; height: 100vh; background: #f8f9fa; }
-        .controls { position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; gap: 15px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        #bubbleBasket { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; background: #2c3e50; color: white; padding: 15px 30px; border-radius: 30px; cursor: pointer; }
-        
-        /* Modal & Tabs */
-        #contentModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; background: white; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.3); border-radius: 12px; padding: 25px; }
-        #contentModal.active { display: block; }
-        .modal-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .modal-header input { font-size: 1.5em; border: none; border-bottom: 2px solid #eee; width: 80%; outline: none; }
-        .close-btn { cursor: pointer; font-size: 1.5em; background: none; border: none; color: #888; }
-        
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .tab-btn { padding: 8px 12px; cursor: pointer; border: none; background: none; font-size: 1em; color: #555; }
-        .tab-btn.active { font-weight: bold; color: #2c3e50; background: #eef2f5; border-radius: 6px; }
-        
-        .tab-content { display: none; max-height: 350px; overflow-y: auto; }
-        .tab-content.active { display: block; }
-        
-        .item-card { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 8px; background: #fafafa; }
-        .item-card input, .item-card textarea { width: 100%; margin-bottom: 10px; border: 1px solid #ddd; padding: 8px; border-radius: 4px; box-sizing: border-box; }
-        .btn-primary { width: 100%; padding: 12px; background: #2c3e50; color: white; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 15px; font-size: 1em; }
-        .delete-btn { color: #d9534f; background: none; border: none; cursor: pointer; font-size: 0.9em; padding: 0; }
-        .delete-element-btn { color: #d9534f; background: none; border: none; cursor: pointer; font-size: 1em; margin-top: 15px; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="controls">
-        <label><input type="checkbox" id="physicsSwitch"> <span>Physik (للمرح)</span></label>
-        <label><input type="checkbox" id="connectSwitch"> <span>Verbinden (ربط)</span></label>
+
+    <!-- الشريط العلوي -->
+    <header class="top-bar">
+        <div class="logo">
+            <svg class="logo-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+            <span>Memoiren</span>
+        </div>
+        <div class="controls">
+            <label class="switch-container">
+                <span>Verbindungsmodus</span>
+                <input type="checkbox" id="connectSwitch">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </header>
+
+    <!-- مساحة الخريطة الذهنية -->
+    <main id="mindmap"></main>
+
+    <!-- سلة إنشاء الجزيئات -->
+    <div class="bubble-basket" id="bubbleBasket" draggable="true">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+        <span>Neuer Gedanke</span>
     </div>
 
-    <div id="mindmap"></div>
-    <div id="bubbleBasket">+ Neuer Gedanke</div>
+    <!-- نافذة المحتويات الرئيسية -->
+    <div class="modal-overlay" id="contentModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <input type="text" id="bubbleTitleInput" class="editable-title" placeholder="Titel eingeben...">
+                <button class="close-btn" id="closeContentModal">&times;</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="quickNotesTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Notizen
+                </button>
+                <button class="tab-btn" data-tab="notebooksTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+                    Notizbücher
+                </button>
+                <button class="tab-btn" data-tab="audiosTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                    Audio
+                </button>
+                <button class="tab-btn" data-tab="photosTab">
+                    <svg class="tab-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Bilder
+                </button>
+            </div>
 
-    <div id="contentModal">
-        <div class="modal-header">
-            <input type="text" id="bubbleTitleInput" placeholder="Titel...">
-            <button id="closeContentModal" class="close-btn">&times;</button>
+            <div class="modal-body">
+                <div class="tab-content active" id="quickNotesTab">
+                    <button class="add-item-btn" id="addQuickNoteBtn">+ Neue Notiz</button>
+                    <div class="items-list" id="quickNotesList"></div>
+                </div>
+
+                <div class="tab-content" id="notebooksTab">
+                    <button class="add-item-btn" id="addNotebookBtn">+ Neues Notizbuch</button>
+                    <div class="items-list" id="notebooksList"></div>
+                </div>
+
+                <div class="tab-content" id="audiosTab">
+                    <div class="audio-recorder-box">
+                        <button id="recordAudioBtn" class="record-btn">Aufnahme starten</button>
+                        <span id="recordingTimer" style="display:none;">Aufnahme läuft...</span>
+                    </div>
+                    <div class="items-list" id="audiosList"></div>
+                </div>
+
+                <div class="tab-content" id="photosTab">
+                    <label class="upload-btn">
+                        <span>Bild hinzufügen</span>
+                        <input type="file" id="imageInput" accept="image/*" capture="environment" hidden>
+                    </label>
+                    <div class="photos-grid" id="photosList"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="delete-btn" id="deleteBubbleBtn">Element löschen</button>
+            </div>
         </div>
-        
-        <button id="openSubmapBtn" class="btn-primary">🌿 Unter-Mindmap öffnen</button>
+    </div>
 
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="tab-notes">Notizen</button>
-            <button class="tab-btn" data-tab="tab-books">Bücher</button>
-            <button class="tab-btn" data-tab="tab-audio">Audio</button>
-            <button class="tab-btn" data-tab="tab-images">Bilder</button>
+    <!-- نافذة الدفتر المفتوح -->
+    <div class="modal-overlay" id="notebookModal" style="z-index: 110;">
+        <div class="modal-card notebook-card">
+            <div class="modal-header">
+                <h3 id="activeNotebookTitle" class="notebook-title-display">Notizbuch</h3>
+                <button class="close-btn" id="closeNotebookModal">&times;</button>
+            </div>
+            <div class="notebook-page-container">
+                <textarea id="notebookPageInput" class="notebook-textarea" placeholder="Schreibe deine Gedanken hier..."></textarea>
+                <div class="page-footer">
+                    <button id="prevPageBtn" class="page-btn">&larr; Zurück</button>
+                    <span id="pageIndicator" class="page-number">Seite 1</span>
+                    <button id="nextPageBtn" class="page-btn">Weiter &rarr;</button>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <div id="tab-notes" class="tab-content active">
-            <div id="quickNotesList"></div>
-            <button id="addQuickNoteBtn" style="background:none; border:none; color:#555; cursor:pointer; width:100%; text-align:center; margin-top:10px;">+ Neue Notiz</button>
+    <!-- نوافذ التأكيد والنقل -->
+    <div class="modal-overlay danger-zone" id="confirmModal" style="z-index: 120;">
+        <div class="modal-card small-card">
+            <h3>Sind Sie sicher?</h3>
+            <p>Diese Aktion kann nicht rückgängig gemacht werden.</p>
+            <div class="confirm-actions">
+                <button class="btn-cancel" id="cancelConfirmBtn">Abbrechen</button>
+                <button class="btn-danger" id="actionConfirmBtn">Löschen</button>
+            </div>
         </div>
-        
-        <div id="tab-books" class="tab-content">
-            <div id="notebooksList"></div>
-            <button id="addNotebookBtn" style="background:none; border:none; color:#555; cursor:pointer; width:100%; text-align:center; margin-top:10px;">+ Neues Buch</button>
+    </div>
+
+    <div class="modal-overlay" id="moveModal" style="z-index: 120;">
+        <div class="modal-card small-card">
+            <h3>Verschieben nach</h3>
+            <select id="targetBubbleSelect" class="styled-select"></select>
+            <div class="confirm-actions">
+                <button class="btn-cancel" id="cancelMoveBtn">Abbrechen</button>
+                <button class="btn-primary" id="actionMoveBtn">Verschieben</button>
+            </div>
         </div>
-
-        <div id="tab-audio" class="tab-content"><p style="text-align:center; color:#888;">Keine Audios (قريباً)</p></div>
-        <div id="tab-images" class="tab-content"><p style="text-align:center; color:#888;">Keine Bilder (قريباً)</p></div>
-
-        <button id="deleteBubbleBtn" class="delete-element-btn">Element löschen</button>
     </div>
 
     <script type="module" src="app.js"></script>
