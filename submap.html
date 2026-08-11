@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unter-Mindmap</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="top-bar">
+        <div class="logo">
+            <button id="backToMainBtn" style="background:none; border:none; font-size:1rem; font-weight:bold; color:var(--text-primary); cursor:pointer;">
+                &larr; Zurück (العودة)
+            </button>
+            <span id="parentTitleDisplay" style="margin-left: 15px; color: var(--text-secondary); font-size: 0.95rem;"></span>
+        </div>
+        <div class="controls">
+            <label class="switch-container">
+                <span>Verbindungsmodus</span>
+                <input type="checkbox" id="subConnectSwitch">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </header>
+
+    <main id="submapNetwork" style="width:100vw; height:100vh;"></main>
+
+    <div class="bubble-basket" id="subBasket" draggable="true">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+        <span>Unter-Gedanke</span>
+    </div>
+
+    <div class="modal-overlay" id="subModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <input type="text" id="subNodeTitleInput" class="editable-title" placeholder="Titel eingeben...">
+                <button class="close-btn" id="closeSubModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="subNodeNoteInput" style="width:100%; min-height:120px; padding:12px; border-radius:12px; border:1px solid var(--bubble-border); font-family:inherit;" placeholder="Notizen für diese Unter-Gedanke..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="delete-btn" id="deleteSubNodeBtn">Element löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="submap.js"></script>
+</body>
+</html>
