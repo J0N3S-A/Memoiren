@@ -2,7 +2,7 @@
 <html lang="de" dir="ltr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Memoiren - Gedankennetz</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +19,7 @@
         </div>
         <div class="controls">
             <label class="switch-container">
-                <span>Verbindungsmodus</span>
+                <span>Verbinden</span>
                 <input type="checkbox" id="connectSwitch">
                 <span class="slider"></span>
             </label>
@@ -30,7 +30,7 @@
 
     <div class="bubble-basket" id="bubbleBasket" draggable="true">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
-        <span>Neuer Gedanke</span>
+        <span>Neu</span>
     </div>
 
     <div class="modal-overlay" id="contentModal">
@@ -40,15 +40,15 @@
                 <button class="close-btn" id="closeContentModal">&times;</button>
             </div>
             
-            <div style="margin-bottom: 12px;">
-                <button class="btn-primary" id="openSubmapBtn" style="width: 100%; padding: 12px; font-weight: bold; background: #4A5D54; color: #FFF; border-radius: 12px; cursor: pointer;">
-                    🌿 Öffne Unter-Mindmap (خريطة فرعية)
+            <div style="margin-bottom: 8px;">
+                <button class="btn-primary" id="openSubmapBtn" style="width: 100%; padding: 8px 12px; font-weight: 600; font-size: 0.8rem; background: #4A5D54; color: #FFF; border-radius: 10px; cursor: pointer; border: none;">
+                    🌿 Unter-Mindmap öffnen
                 </button>
             </div>
 
             <div class="tabs">
                 <button class="tab-btn active" data-tab="quickNotesTab">Notizen</button>
-                <button class="tab-btn" data-tab="notebooksTab">Notizbücher</button>
+                <button class="tab-btn" data-tab="notebooksTab">Bücher</button>
                 <button class="tab-btn" data-tab="audiosTab">Audio</button>
                 <button class="tab-btn" data-tab="photosTab">Bilder</button>
             </div>
@@ -65,7 +65,7 @@
                 </div>
 
                 <div class="tab-content" id="audiosTab">
-                    <div class="audio-recorder-box" style="margin-bottom:15px;">
+                    <div class="audio-recorder-box" style="margin-bottom:10px;">
                         <button id="recordAudioBtn" class="record-btn" style="width:100%;">🎙️ Aufnahme starten</button>
                     </div>
                     <div class="items-list" id="audiosList"></div>
@@ -105,22 +105,11 @@
 
     <div class="modal-overlay danger-zone" id="confirmModal" style="z-index: 120;">
         <div class="modal-card small-card">
-            <h3>Sind Sie sicher?</h3>
-            <p>Diese Aktion kann nicht rückgängig gemacht werden.</p>
+            <h3>Bestätigen</h3>
+            <p>Möchten Sie dieses Element wirklich löschen?</p>
             <div class="confirm-actions">
                 <button class="btn-cancel" id="cancelConfirmBtn">Abbrechen</button>
                 <button class="btn-danger" id="actionConfirmBtn">Löschen</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="moveModal" style="z-index: 120;">
-        <div class="modal-card small-card">
-            <h3>Verschieben nach</h3>
-            <select id="targetBubbleSelect" class="styled-select"></select>
-            <div class="confirm-actions">
-                <button class="btn-cancel" id="cancelMoveBtn">Abbrechen</button>
-                <button class="btn-primary" id="actionMoveBtn">Verschieben</button>
             </div>
         </div>
     </div>
