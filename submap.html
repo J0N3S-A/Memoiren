@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memoiren - Submap</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="top-bar" style="justify-content: flex-start; gap: 20px;">
+        <button id="backToMainBtn" class="btn-cancel" style="padding: 8px 16px; border-radius: 12px; font-size: 14px;">&larr; Zurück</button>
+        <div class="logo" style="flex-grow: 1;">
+            <span id="submapTitleDisplay">Submap</span>
+        </div>
+        <div class="controls">
+            <label class="switch-container">
+                <span>Verbinden</span>
+                <input type="checkbox" id="subConnectSwitch">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </header>
+
+    <main id="submindmap"></main>
+
+    <!-- Hinzufügen-Knopf für Submap -->
+    <div class="bubble-basket" id="addNodeBasket" style="cursor: pointer;">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+        <span>Neuer Block</span>
+    </div>
+
+    <!-- Editieren Modal für die Submap-Kästchen -->
+    <div class="modal-overlay" id="editNodeModal">
+        <div class="modal-card small-card" style="max-width: 450px;">
+            <div class="modal-header">
+                <input type="text" id="nodeTitleInput" class="editable-title" placeholder="Titel eingeben...">
+                <button class="close-btn" id="closeEditModal">&times;</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
+                <textarea id="nodeTextInput" placeholder="Text hier eingeben..." style="width: 100%; min-height: 140px; padding: 16px; border-radius: 12px; border: 1px solid var(--bubble-border); outline: none; font-family: inherit; font-size: 14px; color: var(--text-primary); resize: vertical; background: #FAFCFB;"></textarea>
+            </div>
+            <div class="confirm-actions">
+                <button class="btn-danger" id="deleteNodeBtn">Löschen</button>
+                <button class="btn-primary" id="saveNodeBtn">Speichern</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bestätigungsfenster für Submap (Löschen von Verbindungen/Blöcken) -->
+    <div class="modal-overlay danger-zone" id="confirmSubModal" style="z-index: 120;">
+        <div class="modal-card small-card">
+            <h3>Sind Sie sicher?</h3>
+            <p>Diese Aktion löscht das Element unwiderruflich.</p>
+            <div class="confirm-actions">
+                <button class="btn-cancel" id="cancelSubConfirmBtn">Abbrechen</button>
+                <button class="btn-danger" id="actionSubConfirmBtn">Löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="submap.js"></script>
+</body>
+</html>

@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Memoiren - Gedankennetz</title>
     
-    <!-- خط Plus Jakarta Sans لستايل نظيف وحديث -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +14,6 @@
 </head>
 <body>
 
-    <!-- الشريط العلوي -->
     <header class="top-bar">
         <div class="logo">
             <svg class="logo-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
@@ -30,20 +28,20 @@
         </div>
     </header>
 
-    <!-- مساحة الخريطة الذهنية -->
     <main id="mindmap"></main>
 
-    <!-- سلة إنشاء الجزيئات -->
     <div class="bubble-basket" id="bubbleBasket" draggable="true">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
         <span>Neuer Gedanke</span>
     </div>
 
-    <!-- نافذة المحتويات الرئيسية -->
+    <!-- Hauptfenster mit hinzugefügtem Submap-Button -->
     <div class="modal-overlay" id="contentModal">
         <div class="modal-card">
             <div class="modal-header">
                 <input type="text" id="bubbleTitleInput" class="editable-title" placeholder="Titel eingeben...">
+                <!-- NEU: Submap Button -->
+                <button id="openSubmapBtn" class="btn-primary" style="margin-right: 15px; font-size: 13px; padding: 8px 14px; border-radius: 10px;">Submap Öffnen</button>
                 <button class="close-btn" id="closeContentModal">&times;</button>
             </div>
             
@@ -78,10 +76,6 @@
                 </div>
 
                 <div class="tab-content" id="audiosTab">
-                    <div class="audio-recorder-box">
-                        <button id="recordAudioBtn" class="record-btn">Aufnahme starten</button>
-                        <span id="recordingTimer" style="display:none;">Aufnahme läuft...</span>
-                    </div>
                     <div class="items-list" id="audiosList"></div>
                 </div>
 
@@ -100,7 +94,7 @@
         </div>
     </div>
 
-    <!-- نافذة الدفتر المفتوح -->
+    <!-- Notizbuchfenster -->
     <div class="modal-overlay" id="notebookModal" style="z-index: 110;">
         <div class="modal-card notebook-card">
             <div class="modal-header">
@@ -118,7 +112,7 @@
         </div>
     </div>
 
-    <!-- نوافذ التأكيد والنقل -->
+    <!-- Bestätigungsfenster -->
     <div class="modal-overlay danger-zone" id="confirmModal" style="z-index: 120;">
         <div class="modal-card small-card">
             <h3>Sind Sie sicher?</h3>
@@ -130,6 +124,7 @@
         </div>
     </div>
 
+    <!-- Verschiebefenster -->
     <div class="modal-overlay" id="moveModal" style="z-index: 120;">
         <div class="modal-card small-card">
             <h3>Verschieben nach</h3>

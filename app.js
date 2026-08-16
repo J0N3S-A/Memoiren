@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// 1. Firebase Config
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
     authDomain: "memo-8ea40.firebaseapp.com",
@@ -13,12 +12,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 2. Supabase Config
 const SUPABASE_URL = "https://slcjqnexveclbtvjxeuc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsY2pxbmV4dmVjbGJ0dmp4ZXVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTcwNTksImV4cCI6MjEwMDE5MzA1OX0.tZM3I7Kx8_ACL4_HzZRvqSr31OmfuueJs9_Ml7ldgHA"; 
 const BUCKET_NAME = "memoiren-files";
 
-// 3. Global Variables
 let nodesData = new vis.DataSet([]);
 let edgesData = new vis.DataSet([]);
 let activeBubbleId = null;
@@ -27,7 +24,6 @@ let currentNotebookIndex = null;
 let currentPageIndex = 0;
 let activeGroupRecordingIndex = null;
 
-// 4. Mindmap Setup (Physics DISABLED by default)
 const container = document.getElementById("mindmap");
 const data = { nodes: nodesData, edges: edgesData };
 const options = {
@@ -44,13 +40,7 @@ const options = {
     physics: {
         enabled: false,
         solver: "barnesHut",
-        barnesHut: {
-            gravitationalConstant: -2000,
-            centralGravity: 0.3,
-            springLength: 95,
-            springConstant: 0.04,
-            damping: 0.09
-        }
+        barnesHut: { gravitationalConstant: -2000, centralGravity: 0.3, springLength: 95, springConstant: 0.04, damping: 0.09 }
     },
     interaction: { hover: true, dragNodes: true },
     manipulation: { enabled: false, addEdge: async function(edgeData, callback) {
@@ -62,26 +52,17 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// حفظ الموقع عند إفلات الكرات بعد السحب (فقط إذا كانت الفيزياء معطلة)
 network.on("dragEnd", async function (params) {
     const physicsSwitch = document.getElementById("physicsSwitch");
-    
-    // إذا كان زر الفيزياء مفعّلاً، لا تحفظ أي موقع في Firebase
-    if (physicsSwitch && physicsSwitch.checked) {
-        return; 
-    }
+    if (physicsSwitch && physicsSwitch.checked) return; 
 
     if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
         const position = network.getPosition(nodeId);
-        await updateDoc(doc(db, "bubbles", nodeId), {
-            x: position.x,
-            y: position.y
-        });
+        await updateDoc(doc(db, "bubbles", nodeId), { x: position.x, y: position.y });
     }
 });
 
-// 5. Firebase Sync
 onSnapshot(collection(db, "bubbles"), (snapshot) => {
     snapshot.docChanges().forEach((change) => {
         const d = change.doc.data();
@@ -99,7 +80,6 @@ onSnapshot(collection(db, "connections"), (snapshot) => {
     });
 });
 
-// 6. UI Interactions & Dynamic Injection for Physics Switch
 (function injectPhysicsSwitchUI() {
     const connectSwitch = document.getElementById("connectSwitch");
     if (connectSwitch) {
@@ -115,8 +95,6 @@ onSnapshot(collection(db, "connections"), (snapshot) => {
                 </label>
             `;
             parentLabel.parentNode.insertBefore(physicsWrapper, parentLabel.nextSibling);
-
-            // تفعيل/إلغاء الفيزيائية من خلال الزر
             document.getElementById("physicsSwitch").addEventListener("change", (e) => {
                 network.setOptions({ physics: { enabled: e.target.checked } });
             });
@@ -147,7 +125,14 @@ document.getElementById("bubbleBasket").addEventListener("dragend", async (e) =>
     });
 });
 
-// 7. Supabase Upload Logic
+/* NEU: Weiterleitung zur Submap */
+document.getElementById("openSubmapBtn").addEventListener("click", () => {
+    if (activeBubbleId) {
+        const bubble = nodesData.get(activeBubbleId);
+        window.location.href = `submap.html?bubbleId=${activeBubbleId}&title=${encodeURIComponent(bubble.label)}`;
+    }
+});
+
 async function uploadToSupabase(file) {
     try {
         const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
@@ -192,7 +177,6 @@ document.getElementById("imageInput").addEventListener("change", async (e) => {
     }
 });
 
-// 8. Audio Groups Logic
 let mediaRecorder, audioChunks = [];
 
 window.addAudioGroup = async () => {
@@ -265,7 +249,6 @@ window.askDeleteGroupAudio = (gIdx, aIdx) => {
     document.getElementById("confirmModal").classList.add("active");
 };
 
-// 9. Tab Management & Content Rendering
 document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", (e) => {
         document.querySelectorAll(".tab-btn, .tab-content").forEach(el => el.classList.remove("active"));
@@ -288,17 +271,12 @@ function renderContent(id) {
     if (content.audios && content.audios.length > 0) {
         if (!content.audioGroups) content.audioGroups = [];
         content.audioGroups.unshift({
-            id: Date.now(),
-            title: "Einzelne Aufnahmen",
-            description: "Frühere Sprachaufnahmen",
-            isOpen: true,
-            audios: [...content.audios]
+            id: Date.now(), title: "Einzelne Aufnahmen", description: "Frühere Sprachaufnahmen", isOpen: true, audios: [...content.audios]
         });
         delete content.audios;
         updateDoc(doc(db, "bubbles", id), { content: content });
     }
 
-    // Quick Notes
     document.getElementById("quickNotesList").innerHTML = (content.quickNotes || []).map((n, i) => `
         <div class="item-card">
             <input type="text" value="${n.title}" onchange="updateData('quickNotes', ${i}, 'title', this.value)">
@@ -309,7 +287,6 @@ function renderContent(id) {
             </div>
         </div>`).join("");
 
-    // Notebooks
     document.getElementById("notebooksList").innerHTML = (content.notebooks || []).map((nb, i) => `
         <div class="notebook-cover">
             <input type="text" class="notebook-title-input" value="${nb.title}" onchange="updateData('notebooks', ${i}, 'title', this.value)">
@@ -322,7 +299,6 @@ function renderContent(id) {
             </div>
         </div>`).join("");
         
-    // Audio Groups
     document.getElementById("audiosList").innerHTML = `
         <div style="margin-bottom: 15px;">
             <button class="btn-primary" onclick="addAudioGroup()" style="width: 100%; padding: 12px; font-weight: bold; font-size: 14px; cursor: pointer;">
@@ -332,30 +308,25 @@ function renderContent(id) {
         <div id="audioGroupsContainer">
             ${(content.audioGroups || []).map((group, gIdx) => `
                 <div style="border: 2px solid #E4ECE7; padding: 16px; border-radius: 12px; margin-bottom: 16px; background: #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
-                    
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
                         <div style="flex-grow: 1;">
                             <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Gruppentitel:</label>
                             <input type="text" value="${group.title || ''}" onchange="updateAudioGroupField(${gIdx}, 'title', this.value)" 
-                                   style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;" 
-                                   placeholder="Gruppentitel hier eingeben...">
+                                   style="width: 100%; font-weight: bold; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 14px; color: #2C3E35; background: #FBFDFB;">
                         </div>
                         <div style="display: flex; gap: 6px; align-items: flex-end; padding-top: 15px;">
                             ${group.isOpen ? 
                                 `<button onclick="toggleAudioGroup(${gIdx}, false)" style="background: #E4ECE7; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Ausblenden 🙈</button>` : 
                                 `<button onclick="toggleAudioGroup(${gIdx}, true)" style="background: #D9EBE4; color: #2C3E35; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Alle anzeigen 👁️</button>`
                             }
-                            <button onclick="askDeleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;" title="Gruppe löschen">🗑️</button>
+                            <button onclick="askDeleteAudioGroup(${gIdx})" style="background: #FFE8E8; color: #D9534F; border: none; padding: 8px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">🗑️</button>
                         </div>
                     </div>
-
                     <div style="margin-bottom: 12px;">
                         <label style="font-size: 11px; color: #666; display: block; margin-bottom: 2px; font-weight: bold;">Beschreibung / Details:</label>
                         <textarea onchange="updateAudioGroupField(${gIdx}, 'description', this.value)" 
-                                  style="width: 100%; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: #4A5D54; background: #FBFDFB; resize: vertical; min-height: 45px;" 
-                                  placeholder="Beschreibung für diese Gruppe eingeben...">${group.description || ''}</textarea>
+                                  style="width: 100%; border: 1px solid #D1DED6; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: #4A5D54; background: #FBFDFB; resize: vertical; min-height: 45px;">${group.description || ''}</textarea>
                     </div>
-                    
                     ${group.isOpen ? `
                         <div style="margin-top: 14px; border-top: 2px dashed #E4ECE7; padding-top: 14px; background: #F9FBF9; padding: 12px; border-radius: 8px;">
                             <div style="margin-bottom: 14px; text-align: center;">
@@ -364,23 +335,19 @@ function renderContent(id) {
                                     🎙️ Neue Aufnahme starten
                                 </button>
                             </div>
-                            
                             <div style="display: flex; flex-direction: column; gap: 10px;">
                                 ${(group.audios && group.audios.length > 0) ? group.audios.map((a, aIdx) => `
                                     <div style="background: #FFF; padding: 10px 12px; border-radius: 8px; border: 1px solid #E0E7E3;">
                                         <div style="margin-bottom: 6px;">
                                             <input type="text" value="${a.title}" onchange="updateGroupAudioTitle(${gIdx}, ${aIdx}, this.value)" 
-                                                   style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0; color: #333;" 
-                                                   placeholder="Titel der Aufnahme...">
+                                                   style="border: none; border-bottom: 1px solid #CCC; font-weight: bold; width: 100%; font-size: 13px; padding: 2px 0; color: #333;">
                                         </div>
                                         <audio controls src="${a.url}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
                                         <div style="text-align: left; margin-top: 6px;">
-                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx}, ${aIdx})">
-                                                Aufnahme löschen 🗑️
-                                            </button>
+                                            <button style="color: #D9534F; background: transparent; border: none; font-size: 11px; cursor: pointer; font-weight: bold;" onclick="askDeleteGroupAudio(${gIdx}, ${aIdx})">Aufnahme löschen 🗑️</button>
                                         </div>
                                     </div>
-                                `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">Keine Sprachaufnahmen in dieser Gruppe vorhanden.</div>'}
+                                `).join("") : '<div style="text-align:center; color:#888; font-size:12px;">Keine Sprachaufnahmen vorhanden.</div>'}
                             </div>
                         </div>
                     ` : ''}
@@ -389,7 +356,6 @@ function renderContent(id) {
         </div>
     `;
 
-    // Photos
     document.getElementById("photosList").innerHTML = (content.photos || []).map((p, i) => `
         <div class="photo-wrapper">
             <img src="${p.url}">
@@ -417,7 +383,6 @@ document.getElementById("addNotebookBtn").addEventListener("click", async () => 
     await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
 });
 
-// 10. Notebook Logic
 window.openNotebook = (index) => {
     currentNotebookIndex = index; currentPageIndex = 0;
     const b = nodesData.get(activeBubbleId);
@@ -463,7 +428,6 @@ document.getElementById("nextPageBtn").addEventListener("click", async () => {
 });
 document.getElementById("closeNotebookModal").addEventListener("click", () => document.getElementById("notebookModal").classList.remove("active"));
 
-// 11. Centralized Delete & Move Logic
 window.askDelete = (type, index) => {
     currentAction = { action: 'deleteItem', type, index };
     document.getElementById("confirmModal").classList.add("active");
@@ -476,7 +440,6 @@ document.getElementById("cancelConfirmBtn").addEventListener("click", () => docu
 
 document.getElementById("actionConfirmBtn").addEventListener("click", async () => {
     if (!currentAction) return;
-
     if (currentAction.action === 'deleteBubble') {
         await deleteDoc(doc(db, "bubbles", activeBubbleId));
         document.getElementById("contentModal").classList.remove("active");
@@ -493,7 +456,6 @@ document.getElementById("actionConfirmBtn").addEventListener("click", async () =
         b.content[currentAction.type].splice(currentAction.index, 1);
         await updateDoc(doc(db, "bubbles", activeBubbleId), { content: b.content });
     }
-    
     currentAction = null;
     document.getElementById("confirmModal").classList.remove("active");
 });
