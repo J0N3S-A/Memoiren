@@ -107,13 +107,18 @@ document.getElementById("connectSwitch").addEventListener("change", (e) => {
     else network.disableEditMode();
 });
 
-network.on("doubleClick", (params) => {
+// MODIFIED DOUBLE-CLICK LISTENER
+network.on("doubleClick", async (params) => {
     if (params.nodes.length > 0) {
         activeBubbleId = params.nodes[0];
         const bubble = nodesData.get(activeBubbleId);
         document.getElementById("bubbleTitleInput").value = bubble.label;
         document.getElementById("contentModal").classList.add("active");
         renderContent(activeBubbleId);
+    } else if (params.edges.length > 0) {
+        // If an edge was double-clicked (and not a node), delete it from Firebase
+        const edgeId = params.edges[0];
+        await deleteDoc(doc(db, "connections", edgeId));
     }
 });
 
