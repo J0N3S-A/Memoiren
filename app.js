@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
@@ -11,6 +12,62 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// AUTHENTICATION & ROLE MANAGEMENT
+const loginBtn = document.getElementById("loginBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+
+if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+        signInWithPopup(auth, provider).catch((error) => {
+            console.error("Anmeldefehler:", error);
+            alert("Fehler bei der Anmeldung: " + error.message);
+        });
+    });
+}
+
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+        signOut(auth);
+    });
+}
+
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        const userRef = doc(db, "users", user.uid);
+        try {
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                if (userData.role === "admin") {
+                    if (loginBtn) loginBtn.style.display = "none";
+                    if (logoutBtn) logoutBtn.style.display = "inline-block";
+                } else {
+                    alert("Zugriff verweigert: Sie besitzen keine Administratorrechte.");
+                    await signOut(auth);
+                }
+            } else {
+                // إنشاء مستند جديد في مجموعة users وتعيين دور user افتراضيًا
+                await setDoc(userRef, {
+                    email: user.email,
+                    role: "user",
+                    createdAt: serverTimestamp()
+                });
+                alert("Ihr Konto wurde erstellt. Bitte warten Sie auf die Administrator-Freigabe.");
+                await signOut(auth);
+            }
+        } catch (error) {
+            console.error("Fehler beim Abrufen der Benutzerrolle:", error);
+            alert("Zugriffsfehler auf die Datenbank.");
+            await signOut(auth);
+        }
+    } else {
+        if (loginBtn) loginBtn.style.display = "inline-block";
+        if (logoutBtn) logoutBtn.style.display = "none";
+    }
+});
 
 const SUPABASE_URL = "https://slcjqnexveclbtvjxeuc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsY2pxbmV4dmVjbGJ0dmp4ZXVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTcwNTksImV4cCI6MjEwMDE5MzA1OX0.tZM3I7Kx8_ACL4_HzZRvqSr31OmfuueJs9_Ml7ldgHA"; 
@@ -107,7 +164,6 @@ document.getElementById("connectSwitch").addEventListener("change", (e) => {
     else network.disableEditMode();
 });
 
-// MODIFIED DOUBLE-CLICK LISTENER
 network.on("doubleClick", async (params) => {
     if (params.nodes.length > 0) {
         activeBubbleId = params.nodes[0];
@@ -116,7 +172,6 @@ network.on("doubleClick", async (params) => {
         document.getElementById("contentModal").classList.add("active");
         renderContent(activeBubbleId);
     } else if (params.edges.length > 0) {
-        // If an edge was double-clicked (and not a node), delete it from Firebase
         const edgeId = params.edges[0];
         await deleteDoc(doc(db, "connections", edgeId));
     }
@@ -130,7 +185,6 @@ document.getElementById("bubbleBasket").addEventListener("dragend", async (e) =>
     });
 });
 
-/* NEU: Weiterleitung zur Submap */
 document.getElementById("openSubmapBtn").addEventListener("click", () => {
     if (activeBubbleId) {
         const bubble = nodesData.get(activeBubbleId);

@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDocs, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
@@ -11,13 +12,66 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-// Lese die ID der Bubble aus der URL ab
+// AUTHENTICATION & ROLE MANAGEMENT FOR SUBMAP
+const subLoginBtn = document.getElementById("subLoginBtn");
+const subLogoutBtn = document.getElementById("subLogoutBtn");
+
+if (subLoginBtn) {
+    subLoginBtn.addEventListener("click", () => {
+        signInWithPopup(auth, provider).catch((error) => {
+            console.error("Anmeldefehler:", error);
+            alert("Fehler bei der Anmeldung: " + error.message);
+        });
+    });
+}
+
+if (subLogoutBtn) {
+    subLogoutBtn.addEventListener("click", () => {
+        signOut(auth);
+    });
+}
+
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        const userRef = doc(db, "users", user.uid);
+        try {
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                if (userData.role === "admin") {
+                    if (subLoginBtn) subLoginBtn.style.display = "none";
+                    if (subLogoutBtn) subLogoutBtn.style.display = "inline-block";
+                } else {
+                    alert("Zugriff verweigert: Sie besitzen keine Administratorrechte.");
+                    await signOut(auth);
+                }
+            } else {
+                await setDoc(userRef, {
+                    email: user.email,
+                    role: "user",
+                    createdAt: serverTimestamp()
+                });
+                alert("Ihr Konto wurde erstellt. Bitte warten Sie auf die Administrator-Freigabe.");
+                await signOut(auth);
+            }
+        } catch (error) {
+            console.error("Fehler beim Abrufen der Benutzerrolle:", error);
+            alert("Zugriffsfehler auf die Datenbank.");
+            await signOut(auth);
+        }
+    } else {
+        if (subLoginBtn) subLoginBtn.style.display = "inline-block";
+        if (subLogoutBtn) subLogoutBtn.style.display = "none";
+    }
+});
+
 const urlParams = new URLSearchParams(window.location.search);
 const parentBubbleId = urlParams.get('bubbleId');
 const parentTitle = urlParams.get('title') || 'Submap';
 
-// Falls keine ID vorhanden ist, zur Hauptseite zurückschicken
 if(!parentBubbleId) window.location.href = "index.html";
 
 document.getElementById('submapTitleDisplay').innerText = parentTitle;
@@ -28,14 +82,12 @@ let subEdgesData = new vis.DataSet([]);
 let activeNodeId = null;
 let pendingAction = null;
 
-// Eigene Datenbank-Listen für jede Submap
 const subNodesRef = collection(db, `bubbles/${parentBubbleId}/subnodes`);
 const subEdgesRef = collection(db, `bubbles/${parentBubbleId}/subedges`);
 
 const container = document.getElementById("submindmap");
 const data = { nodes: subNodesData, edges: subEdgesData };
 
-// Vis.js Konfiguration für eckige, breite Boxen
 const options = {
     nodes: {
         shape: "box",
@@ -49,7 +101,7 @@ const options = {
         borderWidth: 2, shadow: { enabled: true, color: "rgba(74, 93, 84, 0.04)", size: 12 }
     },
     edges: { color: { color: "#C2DACF", highlight: "#A7CBB9" }, smooth: { type: "continuous" }, width: 2 },
-    physics: { enabled: false }, // Ohne Physik, freies Verschieben
+    physics: { enabled: false },
     interaction: { hover: true, dragNodes: true },
     manipulation: {
         enabled: false,
@@ -63,24 +115,20 @@ const options = {
 };
 const network = new vis.Network(container, data, options);
 
-// Funktion, um den Titel und Text formatgerecht zusammenzufügen (mit HTML-Tags)
 function formatLabel(title, text, showText) {
     let label = "<b>" + (title || "Ohne Titel") + "</b>";
     if (showText && text) label += "\n\n" + text;
     return label;
 }
 
-// Submap initialisieren
 async function initSubmap() {
     const snap = await getDocs(subNodesRef);
     if (snap.empty) {
-        // Erstellt den Hauptknotenpunkt in der Mitte, wenn noch nichts da ist
         await addDoc(subNodesRef, {
             title: parentTitle, text: "Hauptgedanke", x: 0, y: 0, showText: false, isCentral: true
         });
     }
     
-    // Nodes lauschen
     onSnapshot(subNodesRef, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
             const d = change.doc.data();
@@ -97,7 +145,6 @@ async function initSubmap() {
         });
     });
 
-    // Edges lauschen
     onSnapshot(subEdgesRef, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
             const d = change.doc.data();
@@ -108,7 +155,6 @@ async function initSubmap() {
 }
 initSubmap();
 
-// Verschieben speichern
 network.on("dragEnd", async function (params) {
     if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
@@ -117,32 +163,25 @@ network.on("dragEnd", async function (params) {
     }
 });
 
-// Verbindungsmodus 
 document.getElementById("subConnectSwitch").addEventListener("change", (e) => {
     if (e.target.checked) network.addEdgeMode();
     else network.disableEditMode();
 });
 
-// Einzelner Klick auf Block (Text anzeigen/verbergen) oder Klick auf Verbindung (Löschen)
 network.on("click", async (params) => {
     if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
         const node = subNodesData.get(nodeId);
-        const newState = !node.showText; // Schaltet den Zustand um
+        const newState = !node.showText;
         
-        // Speichert lokale Änderung sofort für flüssigere Animation
         subNodesData.update({ id: nodeId, label: formatLabel(node.titleData, node.textData, newState), showText: newState });
-        
-        // Sichert in der Cloud
         await updateDoc(doc(subNodesRef, nodeId), { showText: newState });
     } else if (params.edges.length > 0) {
-        // Ein Klick auf eine Verbindungslinie bietet an, diese zu löschen
         pendingAction = { type: 'edge', id: params.edges[0] };
         document.getElementById("confirmSubModal").classList.add("active");
     }
 });
 
-// Doppelklick auf Block (Öffnet Editor-Menü)
 network.on("doubleClick", (params) => {
     if (params.nodes.length > 0) {
         activeNodeId = params.nodes[0];
@@ -151,21 +190,18 @@ network.on("doubleClick", (params) => {
         document.getElementById("nodeTextInput").value = node.textData || "";
         document.getElementById("editNodeModal").classList.add("active");
         
-        // Der zentrale Knotenpunkt kann nicht gelöscht werden
         document.getElementById("deleteNodeBtn").style.display = node.isCentral ? "none" : "block"; 
     }
 });
 
-// Neuen Block durch Tippen auf Button hinzufügen (zentriert)
 document.getElementById("addNodeBasket").addEventListener("click", async () => {
-    const center = network.getViewPosition(); // Holt die Mitte des aktuellen Bildausschnitts
+    const center = network.getViewPosition();
     await addDoc(subNodesRef, {
         title: "Neuer Block", text: "Schreiben Sie Ihren Text hier...", 
         x: center.x, y: center.y + 100, showText: false, isCentral: false
     });
 });
 
-// Editor-Aktionen (Speichern und Schließen)
 document.getElementById("closeEditModal").addEventListener("click", () => document.getElementById("editNodeModal").classList.remove("active"));
 
 document.getElementById("saveNodeBtn").addEventListener("click", async () => {
@@ -177,21 +213,18 @@ document.getElementById("saveNodeBtn").addEventListener("click", async () => {
     }
 });
 
-// Knotenpunkt löschen Vorbereitung
 document.getElementById("deleteNodeBtn").addEventListener("click", () => {
     pendingAction = { type: 'node', id: activeNodeId };
     document.getElementById("editNodeModal").classList.remove("active");
     document.getElementById("confirmSubModal").classList.add("active");
 });
 
-// Bestätigungsfenster-Aktionen (Endgültiges Löschen von Linien oder Blöcken)
 document.getElementById("cancelSubConfirmBtn").addEventListener("click", () => document.getElementById("confirmSubModal").classList.remove("active"));
 
 document.getElementById("actionSubConfirmBtn").addEventListener("click", async () => {
     if (pendingAction) {
         if (pendingAction.type === 'node') {
             await deleteDoc(doc(subNodesRef, pendingAction.id));
-            // Löscht auch alle zugehörigen Verbindungslinien dieses Kästchens
             const edgesToRemove = subEdgesData.get({ filter: e => e.from === pendingAction.id || e.to === pendingAction.id });
             edgesToRemove.forEach(async e => await deleteDoc(doc(subEdgesRef, e.id)));
         } else if (pendingAction.type === 'edge') {
