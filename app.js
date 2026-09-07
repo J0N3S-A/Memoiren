@@ -1,6 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCT7bYMjc-r5LpwLM9SdiTKkEtP-IKOcro",
@@ -12,62 +11,6 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
-
-// AUTHENTICATION & ROLE MANAGEMENT
-const loginBtn = document.getElementById("loginBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-
-if (loginBtn) {
-    loginBtn.addEventListener("click", () => {
-        signInWithPopup(auth, provider).catch((error) => {
-            console.error("Anmeldefehler:", error);
-            alert("Fehler bei der Anmeldung: " + error.message);
-        });
-    });
-}
-
-if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-        signOut(auth);
-    });
-}
-
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        const userRef = doc(db, "users", user.uid);
-        try {
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-                const userData = userSnap.data();
-                if (userData.role === "admin") {
-                    if (loginBtn) loginBtn.style.display = "none";
-                    if (logoutBtn) logoutBtn.style.display = "inline-block";
-                } else {
-                    alert("Zugriff verweigert: Sie besitzen keine Administratorrechte.");
-                    await signOut(auth);
-                }
-            } else {
-                // إنشاء مستند جديد في مجموعة users وتعيين دور user افتراضيًا
-                await setDoc(userRef, {
-                    email: user.email,
-                    role: "user",
-                    createdAt: serverTimestamp()
-                });
-                alert("Ihr Konto wurde erstellt. Bitte warten Sie auf die Administrator-Freigabe.");
-                await signOut(auth);
-            }
-        } catch (error) {
-            console.error("Fehler beim Abrufen der Benutzerrolle:", error);
-            alert("Zugriffsfehler auf die Datenbank.");
-            await signOut(auth);
-        }
-    } else {
-        if (loginBtn) loginBtn.style.display = "inline-block";
-        if (logoutBtn) logoutBtn.style.display = "none";
-    }
-});
 
 const SUPABASE_URL = "https://slcjqnexveclbtvjxeuc.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsY2pxbmV4dmVjbGJ0dmp4ZXVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTcwNTksImV4cCI6MjEwMDE5MzA1OX0.tZM3I7Kx8_ACL4_HzZRvqSr31OmfuueJs9_Ml7ldgHA"; 
@@ -100,15 +43,21 @@ const options = {
         barnesHut: { gravitationalConstant: -2000, centralGravity: 0.3, springLength: 95, springConstant: 0.04, damping: 0.09 }
     },
     interaction: { hover: true, dragNodes: true },
-    manipulation: { enabled: false, addEdge: async function(edgeData, callback) {
-        if(edgeData.from !== edgeData.to) {
-            await addDoc(collection(db, "connections"), { from: edgeData.from, to: edgeData.to });
-            callback(edgeData);
+    manipulation: { 
+        enabled: false, 
+        addEdge: async function(edgeData, callback) {
+            if(edgeData.from !== edgeData.to) {
+                await addDoc(collection(db, "connections"), { from: edgeData.from, to: edgeData.to });
+                callback(null); // إلغاء الإضافة المحلية لتتولى onSnapshot عرض الخط بالـ id الصحيح من Firestore
+            } else {
+                callback(null);
+            }
         }
-    }}
+    }
 };
 const network = new vis.Network(container, data, options);
 
+// حفظ مواقع الكرات بعد السحب (فقط عند إيقاف الحركة الفيزيائية)
 network.on("dragEnd", async function (params) {
     const physicsSwitch = document.getElementById("physicsSwitch");
     if (physicsSwitch && physicsSwitch.checked) return; 
@@ -120,6 +69,7 @@ network.on("dragEnd", async function (params) {
     }
 });
 
+// الاستماع المباشر للكرات
 onSnapshot(collection(db, "bubbles"), (snapshot) => {
     snapshot.docChanges().forEach((change) => {
         const d = change.doc.data();
@@ -130,18 +80,26 @@ onSnapshot(collection(db, "bubbles"), (snapshot) => {
         if (change.type === "removed") nodesData.remove(change.doc.id);
     });
 });
+
+// الاستماع المباشر لخطوط الربط
 onSnapshot(collection(db, "connections"), (snapshot) => {
     snapshot.docChanges().forEach((change) => {
-        if (change.type === "added") edgesData.update({ id: change.doc.id, from: change.doc.data().from, to: change.doc.data().to });
-        if (change.type === "removed") edgesData.remove(change.doc.id);
+        const d = change.doc.data();
+        if (change.type === "added" || change.type === "modified") {
+            edgesData.update({ id: change.doc.id, from: d.from, to: d.to });
+        }
+        if (change.type === "removed") {
+            edgesData.remove(change.doc.id);
+        }
     });
 });
 
+// تفعيل وإلغاء الحركة الفيزيائية
 (function injectPhysicsSwitchUI() {
     const connectSwitch = document.getElementById("connectSwitch");
     if (connectSwitch) {
         const parentLabel = connectSwitch.closest("label") || connectSwitch.parentElement;
-        if (parentLabel) {
+        if (parentLabel && !document.getElementById("physicsSwitch")) {
             const physicsWrapper = document.createElement("div");
             physicsWrapper.style.marginTop = "8px";
             physicsWrapper.innerHTML = `
@@ -153,7 +111,13 @@ onSnapshot(collection(db, "connections"), (snapshot) => {
             `;
             parentLabel.parentNode.insertBefore(physicsWrapper, parentLabel.nextSibling);
             document.getElementById("physicsSwitch").addEventListener("change", (e) => {
-                network.setOptions({ physics: { enabled: e.target.checked } });
+                const isEnabled = e.target.checked;
+                network.setOptions({ physics: { enabled: isEnabled } });
+                if (isEnabled) {
+                    network.startSimulation();
+                } else {
+                    network.stopSimulation();
+                }
             });
         }
     }
@@ -164,6 +128,7 @@ document.getElementById("connectSwitch").addEventListener("change", (e) => {
     else network.disableEditMode();
 });
 
+// النقر المزدوج لفتح الفقاعة أو حذف الخط
 network.on("doubleClick", async (params) => {
     if (params.nodes.length > 0) {
         activeBubbleId = params.nodes[0];
